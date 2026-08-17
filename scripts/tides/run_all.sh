@@ -4,12 +4,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-PYTHON="${PYTHON:-python}"
+if [[ -n "${PYTHON:-}" ]]; then
+  PYTHON_BIN="$PYTHON"
+elif [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PYTHON_BIN="$ROOT/.venv/bin/python"
+else
+  PYTHON_BIN="python"
+fi
 
 echo "============================================================"
 echo "SAFOD tide-model pipeline"
 echo "root: $ROOT"
-echo "python: $($PYTHON --version)"
+echo "python: $($PYTHON_BIN --version)"
+echo "python exe: $PYTHON_BIN"
 echo "host: $(hostname)"
 echo "============================================================"
 
@@ -20,11 +27,11 @@ if [[ ! -x "$ROOT/external/spotl/bin/ertid" ]]; then
   exit 10
 fi
 
-$PYTHON scripts/tides/run_pysolid_tides.py
-$PYTHON scripts/tides/run_spotl_ertid.py
-$PYTHON scripts/tides/run_analytic_degree2.py
-$PYTHON scripts/tides/compare_forcing.py
-$PYTHON scripts/tides/run_models.py
+$PYTHON_BIN scripts/tides/run_pysolid_tides.py
+$PYTHON_BIN scripts/tides/run_spotl_ertid.py
+$PYTHON_BIN scripts/tides/run_analytic_degree2.py
+$PYTHON_BIN scripts/tides/compare_forcing.py
+$PYTHON_BIN scripts/tides/run_models.py
 
 echo
 echo "Pipeline complete."
