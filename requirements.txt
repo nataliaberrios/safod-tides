@@ -1,7 +1,7 @@
 numpy==1.26.4
 scipy==1.13.1
-pandas>=2.0,<3.0
-matplotlib>=3.7,<4.0
-jupyter
-nbconvert
+pandas==2.2.2
+pillow==10.4.0
+matplotlib==3.8.4
+ipykernel>=6.29,<7
 pysolid==0.3.4
