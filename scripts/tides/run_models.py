@@ -8,111 +8,110 @@ import pandas as pd
 
 from common import ROOT, load_config, provenance_base, write_json
 
-# Coordinates are North, East, Down (NED).
-#
-# Thomas et al. (2012) specify the architecture
-#     SPOTL strain -> linear elasticity -> fault traction,
-# but do not print the constitutive equation or numerical elastic constants in
-# their Figure-3 methods paragraph. A later Parkfield implementation by van der
-# Elst et al. (2016), using SPOTL for the same deep-SAF tidal-stress problem,
-# explicitly states plane strain, nu=0.25, and shear modulus G=30 GPa. Model B
-# adopts that explicit Parkfield closure and keeps the Thomas geometry as a
-# separate reference calculation from the SAFOD application geometry.
 
-
-def isotropic_plane_strain_stress(enn, eee, ene, shear_modulus_pa, nu):
-    """3-D isotropic Hooke law under plane strain.
-
-    NED coordinates. We impose eps_DD = eps_ND = eps_ED = 0. Stress is
-    positive in tension; ``ene`` is tensor shear strain, not engineering shear.
-    """
-    mu = float(shear_modulus_pa)
+def elastic_moduli_from_E_nu(E_pa, nu):
+    E = float(E_pa)
     nu = float(nu)
+    if E <= 0:
+        raise ValueError("Young modulus must be positive.")
     if not (-1.0 < nu < 0.5):
         raise ValueError("Poisson ratio must lie between -1 and 0.5.")
+    mu = E / (2.0 * (1.0 + nu))
+    lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    return lam, mu
+
+
+def elastic_moduli_from_mu_nu(mu_pa, nu):
+    mu = float(mu_pa)
+    nu = float(nu)
+    if mu <= 0:
+        raise ValueError("Shear modulus must be positive.")
+    if not (-1.0 < nu < 0.5):
+        raise ValueError("Poisson ratio must lie between -1 and 0.5.")
+    E = 2.0 * mu * (1.0 + nu)
     lam = 2.0 * mu * nu / (1.0 - 2.0 * nu)
-
-    enn = np.asarray(enn, float)
-    eee = np.asarray(eee, float)
-    ene = np.asarray(ene, float)
-    trace = enn + eee
-
-    snn = 2.0 * mu * enn + lam * trace
-    see = 2.0 * mu * eee + lam * trace
-    sdd = lam * trace
-    sne = 2.0 * mu * ene
-    return snn, see, sdd, sne
+    return E, lam, mu
 
 
-def fault_basis(strike_deg, dip_deg, dip_direction_deg):
-    """Return strike, down-dip, and normal unit vectors in NED coordinates."""
-    strike = np.deg2rad(float(strike_deg))
-    dip = np.deg2rad(float(dip_deg))
-    dipdir = np.deg2rad(float(dip_direction_deg))
+def surface_volume_strain_from_horizontal(enn, eee, nu):
+    """Infer tr(eps) for an isotropic traction-free surface.
 
-    s = np.array([np.cos(strike), np.sin(strike), 0.0])
-    d = np.array([
-        np.cos(dip) * np.cos(dipdir),
-        np.cos(dip) * np.sin(dipdir),
-        np.sin(dip),
-    ])
-    s /= np.linalg.norm(s)
-    d /= np.linalg.norm(d)
-    n = np.cross(s, d)
-    n /= np.linalg.norm(n)
-    return s, d, n
+    At the free surface sigma_DD = 0. Isotropic Hooke law then gives
 
+        eps_DD = -nu/(1-nu) * (eps_NN + eps_EE)
 
-def resolve_geometry(snn, see, sdd, sne, strike_deg, dip_deg, dip_direction_deg):
-    """Resolve the plane-strain stress tensor onto one fault geometry.
+    and therefore
 
-    Returns FNS (positive=tension/unclamping), along-strike shear, down-dip
-    shear, and mean normal stress. All time series are mean removed.
+        tr(eps) = (1-2nu)/(1-nu) * (eps_NN + eps_EE).
+
+    This is a surface relation. It is not a plane-strain assumption and it is
+    not claimed to be the exact 3-D strain tensor at ~1 km depth.
     """
-    s, d, n = fault_basis(strike_deg, dip_deg, dip_direction_deg)
+    nu = float(nu)
+    enn = np.asarray(enn, dtype=float)
+    eee = np.asarray(eee, dtype=float)
+    return ((1.0 - 2.0 * nu) / (1.0 - nu)) * (enn + eee)
 
-    nt = len(np.asarray(snn))
-    sigma = np.zeros((nt, 3, 3), dtype=float)
+
+def horizontal_stress_from_surface_strain(enn, eee, ene, E_pa, nu):
+    """Horizontal stress from surface strain using 3-D isotropic Hooke law.
+
+    Only the surface strain trace is inferred from the traction-free boundary
+    condition. The constitutive law itself is the full isotropic relation
+
+        sigma_ij = 2 mu eps_ij + lambda tr(eps) delta_ij.
+
+    For a vertical receiver fault, fault-normal and strike-parallel tractions
+    require only sigma_NN, sigma_EE, and sigma_NE. We therefore do not invent
+    an underground vertical stress tensor in order to project onto a dipping
+    fault.
+
+    Stress sign convention: positive=tension. ``ene`` is tensor shear strain.
+    """
+    lam, mu = elastic_moduli_from_E_nu(E_pa, nu)
+    enn = np.asarray(enn, dtype=float)
+    eee = np.asarray(eee, dtype=float)
+    ene = np.asarray(ene, dtype=float)
+
+    theta = surface_volume_strain_from_horizontal(enn, eee, nu)
+    edd = theta - enn - eee
+
+    snn = 2.0 * mu * enn + lam * theta
+    see = 2.0 * mu * eee + lam * theta
+    sne = 2.0 * mu * ene
+    sdd = 2.0 * mu * edd + lam * theta
+    return snn, see, sne, sdd, theta, edd
+
+
+def vertical_fault_tractions(snn, see, sne, strike_deg):
+    """Resolve horizontal stress onto a vertical strike-slip receiver fault.
+
+    Coordinates are North/East. Strike is clockwise from north. The horizontal
+    normal is chosen 90 degrees clockwise from +strike. FNS is positive in
+    tension/unclamping. Along-strike shear is positive in the +strike direction
+    on the +normal face. With Thomas et al.'s N42W convention this is the
+    right-lateral shear-stress (RLSS) sign convention used here.
+    """
+    a = np.deg2rad(float(strike_deg))
+    s = np.array([np.cos(a), np.sin(a)])
+    n = np.array([-np.sin(a), np.cos(a)])
+
+    snn = np.asarray(snn, dtype=float)
+    see = np.asarray(see, dtype=float)
+    sne = np.asarray(sne, dtype=float)
+
+    sigma = np.zeros((len(snn), 2, 2), dtype=float)
     sigma[:, 0, 0] = snn
     sigma[:, 1, 1] = see
-    sigma[:, 2, 2] = sdd
     sigma[:, 0, 1] = sigma[:, 1, 0] = sne
 
     traction = np.einsum("tij,j->ti", sigma, n)
     fns = np.einsum("ti,i->t", traction, n)
-    shear_strike = np.einsum("ti,i->t", traction, s)
-    shear_dip = np.einsum("ti,i->t", traction, d)
-    mean_normal = (np.asarray(snn) + np.asarray(see) + np.asarray(sdd)) / 3.0
+    shear = np.einsum("ti,i->t", traction, s)
 
     fns -= np.mean(fns)
-    shear_strike -= np.mean(shear_strike)
-    shear_dip -= np.mean(shear_dip)
-    mean_normal -= np.mean(mean_normal)
-    return fns, shear_strike, shear_dip, mean_normal
-
-
-def resolve_safod_geometry(snn, see, sdd, sne, cfg):
-    m = cfg["model_parameters"]
-    return resolve_geometry(
-        snn, see, sdd, sne,
-        m["fault_strike_deg"],
-        m["fault_dip_deg"],
-        m["fault_dip_direction_deg"],
-    )
-
-
-def resolve_thomas_reference_geometry(snn, see, sdd, sne, cfg):
-    """Resolve onto Thomas et al. (2012) vertical N42W reference plane.
-
-    N42W = azimuth 318 deg. For a vertical plane, either horizontal normal
-    direction represents the same plane; 228 deg is used here for dip direction.
-    The along-strike sign is reported with the +strike direction toward N42W.
-    """
-    m = cfg["model_parameters"]
-    strike = float(m.get("thomas_2012_reference_fault_strike_deg", 318.0))
-    dip = float(m.get("thomas_2012_reference_fault_dip_deg", 90.0))
-    dipdir = (strike - 90.0) % 360.0
-    return resolve_geometry(snn, see, sdd, sne, strike, dip, dipdir)
+    shear -= np.mean(shear)
+    return fns, shear
 
 
 def host_moduli(E, nu):
@@ -132,41 +131,65 @@ def model_one_forcing(df, cfg, label):
     stress_A = m["niu_tidal_stress_scale_pa"] * shape
     dv_A = m["niu_stress_sensitivity_pa_inv"] * stress_A
 
-    # Model B -- explicit Parkfield-style elastic closure.
-    snn, see, sdd, sne = isotropic_plane_strain_stress(
+    # Model B -- Thomas-style architecture:
+    # surface body-tide strain -> linear isotropic elasticity -> VERTICAL fault traction.
+    #
+    # The previous 70-degree dipping-fault / plane-strain calculation is removed.
+    # A dipping receiver plane requires a defensible full 3-D stress tensor at depth;
+    # the present tide products are surface horizontal strains.
+    snn, see, sne, sdd, theta, edd = horizontal_stress_from_surface_strain(
         enn,
         eee,
         ene,
-        m["model_b_shear_modulus_pa"],
+        m["model_b_youngs_modulus_pa"],
         m["model_b_poisson_ratio"],
     )
+    fns, rlss = vertical_fault_tractions(
+        snn,
+        see,
+        sne,
+        m["model_b_vertical_strike_deg"],
+    )
+    fns_compression = -fns
 
-    # Primary SAFOD application geometry.
-    fns, shear_strike, shear_dip, mean_normal = resolve_safod_geometry(
-        snn, see, sdd, sne, cfg
+    # Thomas et al. (2012) Figure-3-style reference calculation for our times.
+    # Their paragraph 13 specifies linear elasticity + a vertical N42W plane but
+    # does not tabulate the exact Figure-3 elastic constants. The benchmark below
+    # therefore uses explicit, labeled values rather than pretending to reproduce
+    # an undocumented parameter choice.
+    th = cfg["thomas_figure3_analogue"]
+    th_E, _, _ = elastic_moduli_from_mu_nu(
+        th["shear_modulus_pa"],
+        th["poisson_ratio"],
+    )
+    th_snn, th_see, th_sne, th_sdd, th_theta, _ = horizontal_stress_from_surface_strain(
+        enn,
+        eee,
+        ene,
+        th_E,
+        th["poisson_ratio"],
+    )
+    th_fns, th_rlss = vertical_fault_tractions(
+        th_snn,
+        th_see,
+        th_sne,
+        th["vertical_strike_deg"],
     )
 
-    # Separate Thomas et al. Figure-3 reference geometry: vertical N42W.
-    th_fns, th_rlss, th_dip_shear, _ = resolve_thomas_reference_geometry(
-        snn, see, sdd, sne, cfg
-    )
+    # Niu barometric stress sensitivity -> tidal stress is OUR transfer assumption.
+    # The primary branch uses compression-positive FNS because Niu's measured
+    # coefficient is a pressure-like loading sensitivity. The RLSS transfer is
+    # retained as a sensitivity calculation rather than silently discarded.
+    S_niu = m["niu_stress_sensitivity_pa_inv"]
+    dv_B = S_niu * fns_compression
+    dv_B_rlss = S_niu * rlss
 
-    lookup = {
-        "fault_normal": fns,
-        "fault_parallel_shear": shear_strike,
-        "fault_dip_shear": shear_dip,
-        "mean_normal": mean_normal,
-    }
-    selected = lookup[m["model_b_stress_proxy"]]
-
-    # Niu barometric sensitivity -> tidal stress is OUR transfer assumption.
-    dv_B = m["niu_stress_sensitivity_pa_inv"] * selected
-
-    # Model C -- direct strain-sensitivity transfers from other sites.
+    # Model C -- direct foreign-site strain-sensitivity transfers.
     dv_C = -m["takano_strain_sensitivity"] * centered
     dv_C_sheng = -m["sheng_strain_sensitivity"] * centered
 
-    # Model D -- mechanistic crack closure, driven by the same selected stress.
+    # Model D -- mechanistic crack closure, driven by the same compression-positive
+    # stress used by the primary Model B branch.
     Kh, muh = host_moduli(m["model_d_host_E_pa"], m["model_d_host_nu"])
     nuh = (3.0 * Kh - 2.0 * muh) / (6.0 * Kh + 2.0 * muh)
     Ak = 16.0 * (1.0 - nuh**2) / (9.0 * (1.0 - 2.0 * nuh))
@@ -175,7 +198,7 @@ def model_one_forcing(df, cfg, label):
     mu_target = rho * m["model_d_target_Vs_m_s"]**2
     rho_c0 = (muh / mu_target - 1.0) / Amu
     pref = 0.5 * (Amu * rho_c0) / (1.0 + Amu * rho_c0)
-    sigma_hat = pref / m["niu_stress_sensitivity_pa_inv"]
+    sigma_hat = pref / S_niu
 
     def vel(rc):
         K = Kh / (1.0 + Ak * rc)
@@ -185,7 +208,7 @@ def model_one_forcing(df, cfg, label):
         return vp, vs
 
     vp0, vs0 = vel(rho_c0)
-    rc = rho_c0 * np.exp(-selected / sigma_hat)
+    rc = rho_c0 * np.exp(-fns_compression / sigma_hat)
     vp, vs = vel(rc)
     dvp = (vp - vp0) / vp0
     dvs = (vs - vs0) / vs0
@@ -195,23 +218,28 @@ def model_one_forcing(df, cfg, label):
         f"{label}_areal_strain": areal,
         f"{label}_model_A_stress_pa": stress_A,
         f"{label}_model_A_dv_over_v": dv_A,
+        # Surface-derived trace and stress used by Model B.
+        f"{label}_surface_volume_strain_used": theta,
+        f"{label}_surface_eps_DD_inferred": edd,
         f"{label}_sigma_NN_pa": snn,
         f"{label}_sigma_EE_pa": see,
-        f"{label}_sigma_DD_pa": sdd,
         f"{label}_sigma_NE_pa": sne,
-        # Primary SAFOD geometry.
-        f"{label}_FNS_pa": fns,
-        f"{label}_along_strike_shear_pa": shear_strike,
-        f"{label}_dip_shear_pa": shear_dip,
-        f"{label}_mean_normal_stress_pa": mean_normal,
-        # Thomas et al. (2012) Figure-3 reference geometry.
+        f"{label}_sigma_DD_check_pa": sdd,
+        # Primary vertical-fault Model B stresses.
+        f"{label}_FNS_tension_pa": fns,
+        f"{label}_FNS_compression_pa": fns_compression,
+        f"{label}_RLSS_pa": rlss,
+        f"{label}_model_B_dv_over_v": dv_B,
+        f"{label}_model_B_dv_over_v_RLSS_sensitivity": dv_B_rlss,
+        # Thomas et al. Figure-3-style analogue for the same forcing times.
         f"{label}_thomas_FNS_pa": th_fns,
         f"{label}_thomas_RLSS_pa": th_rlss,
-        f"{label}_thomas_dip_shear_pa": th_dip_shear,
-        # Backward-compatible aliases for SAFOD application geometry.
-        f"{label}_fault_normal_pa": fns,
-        f"{label}_fault_shear_pa": shear_strike,
-        f"{label}_model_B_dv_over_v": dv_B,
+        f"{label}_thomas_surface_volume_strain_used": th_theta,
+        f"{label}_thomas_sigma_DD_check_pa": th_sdd,
+        # Backward-compatible aliases.
+        f"{label}_fault_normal_pa": fns_compression,
+        f"{label}_fault_shear_pa": rlss,
+        # Models C/D.
         f"{label}_model_C_takano_dv_over_v": dv_C,
         f"{label}_model_C_sheng_dv_over_v": dv_C_sheng,
         f"{label}_model_D_crack_density": rc,
@@ -222,36 +250,30 @@ def model_one_forcing(df, cfg, label):
     })
 
     max_fns = float(np.max(np.abs(fns)))
-    max_shear = float(np.max(np.abs(shear_strike)))
+    max_rlss = float(np.max(np.abs(rlss)))
     max_th_fns = float(np.max(np.abs(th_fns)))
     max_th_rlss = float(np.max(np.abs(th_rlss)))
 
     summary = {
         "forcing": label,
-        "model_B_closure": "isotropic_plane_strain",
-        "model_B_shear_modulus_pa": float(m["model_b_shear_modulus_pa"]),
+        "model_B_closure": "surface strain trace + 3-D isotropic Hooke law + vertical receiver fault",
+        "model_B_youngs_modulus_pa": float(m["model_b_youngs_modulus_pa"]),
         "model_B_poisson_ratio": float(m["model_b_poisson_ratio"]),
-        "model_B_fault_geometry": {
-            "strike_deg": float(m["fault_strike_deg"]),
-            "dip_deg": float(m["fault_dip_deg"]),
-            "dip_direction_deg": float(m["fault_dip_direction_deg"]),
-        },
-        "thomas_reference_geometry": {
-            "strike_deg": float(m.get("thomas_2012_reference_fault_strike_deg", 318.0)),
-            "dip_deg": float(m.get("thomas_2012_reference_fault_dip_deg", 90.0)),
-        },
+        "model_B_vertical_strike_deg": float(m["model_b_vertical_strike_deg"]),
+        "model_B_dipping_fault_not_used": True,
         "max_abs_model_A": float(np.max(np.abs(dv_A))),
         "max_abs_model_B": float(np.max(np.abs(dv_B))),
+        "max_abs_model_B_RLSS_sensitivity": float(np.max(np.abs(dv_B_rlss))),
         "max_abs_model_C_takano": float(np.max(np.abs(dv_C))),
         "max_abs_model_D_Vs": float(np.max(np.abs(dvs))),
         "max_abs_model_D_Vp": float(np.max(np.abs(dvp))),
-        "max_abs_SAFOD_FNS_pa": max_fns,
-        "max_abs_SAFOD_along_strike_shear_pa": max_shear,
-        "SAFOD_FNS_to_shear_amplitude_ratio": float(max_fns / max_shear) if max_shear else np.inf,
-        "max_abs_Thomas_FNS_pa": max_th_fns,
-        "max_abs_Thomas_RLSS_pa": max_th_rlss,
-        "Thomas_FNS_to_RLSS_amplitude_ratio": float(max_th_fns / max_th_rlss) if max_th_rlss else np.inf,
-        "max_abs_selected_stress_pa": float(np.max(np.abs(selected))),
+        "max_abs_FNS_pa": max_fns,
+        "max_abs_RLSS_pa": max_rlss,
+        "FNS_to_RLSS_amplitude_ratio": float(max_fns / max_rlss) if max_rlss else np.inf,
+        "max_abs_Thomas_analogue_FNS_pa": max_th_fns,
+        "max_abs_Thomas_analogue_RLSS_pa": max_th_rlss,
+        "Thomas_analogue_FNS_to_RLSS_ratio": float(max_th_fns / max_th_rlss) if max_th_rlss else np.inf,
+        "max_abs_sigma_DD_surface_check_pa": float(np.max(np.abs(sdd))),
         "model_D_rho_c0": float(rho_c0),
         "model_D_sigma_hat_pa": float(sigma_hat),
         "model_D_baseline_Vp_m_s": float(vp0),
@@ -296,7 +318,7 @@ def main():
     elif not a.allow_missing_spotl:
         raise FileNotFoundError(
             f"{spotl_path} not found. Run run_spotl_ertid.py first "
-            "or use --allow-missing-spotl only for local cached testing."
+            "or use --allow-missing-spotl only for local testing."
         )
 
     Path(a.output).parent.mkdir(parents=True, exist_ok=True)
@@ -305,17 +327,20 @@ def main():
         "models": summaries,
         "primary_forcing": cfg["primary_forcing"],
         "model_B_note": (
-            "Thomas et al. (2012) specify SPOTL strain -> linear elasticity -> vertical N42W fault resolution, "
-            "but do not print the constitutive equation/numerical elastic constants in the Figure-3 methods paragraph. "
-            "The explicit closure here follows the later Parkfield implementation of van der Elst et al. (2016): "
-            "plane strain, nu=0.25, G=30 GPa by default. Thomas-reference and SAFOD-geometry tractions are both saved. "
-            "The subsequent Niu stress -> dv/v multiplication remains a separate transfer assumption."
+            "Model B no longer uses plane strain or projects a surface-derived tensor onto the 70-degree dipping fault. "
+            "It follows the part of Thomas et al. (2012) that is documented: surface body-tide strain is treated as "
+            "representative at depth, converted with linear isotropic elasticity, and resolved onto a vertical SAF plane. "
+            "The free-surface condition is used only to recover the surface volumetric strain/trace needed by Hooke law. "
+            "The Niu barometric stress-sensitivity -> tidal FNS-compression multiplication remains a separate transfer "
+            "assumption. A true 70-degree depth projection is deferred until a full 3-D depth-dependent strain tensor is available."
         ),
+        "thomas_figure3_note": cfg["thomas_figure3_analogue"]["note"],
     })
     write_json(a.provenance, provenance_base(__file__, {
         "output": str(Path(a.output).resolve()),
         "forcings": [s["forcing"] for s in summaries],
         "model_parameters": cfg["model_parameters"],
+        "thomas_figure3_analogue": cfg["thomas_figure3_analogue"],
     }))
 
     print(f"wrote model products to {a.output}")
