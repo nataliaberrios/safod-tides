@@ -39,16 +39,17 @@ Every script writes a JSON provenance record containing the host, time, Python v
 
 ## First-time Sherlock setup
 
-Do this on a **login node**, because the SPOTL download is ~200 MB.
+Do this on a **login node**, because the SPOTL download is about 200 MB.
 
 ```bash
 cd safod-tides
-
-# Create the Python environment.
+git pull
 bash scripts/tides/setup_sherlock.sh
 ```
 
-If the setup script reports that `gfortran`, `gcc`, or `make` is missing, load a GNU compiler toolchain first. The script intentionally does not guess a Sherlock module version:
+The setup script intentionally uses a lightweight project-local Python virtual environment (`.venv`) rather than solving a new conda environment on a Sherlock login node. PySolid 0.3.4 supports Python 3.11.
+
+If the setup script reports that `gfortran`, `gcc`, or `make` is missing, load a GNU compiler toolchain first:
 
 ```bash
 module spider gcc
@@ -58,19 +59,19 @@ bash scripts/tides/install_spotl.sh
 
 The official SPOTL distribution states that it is intended to compile on systems supporting GNU Fortran and C compilers.
 
+The SPOTL installer accepts both `install.compile` (the name used in the 2013 manual) and `install.comp` (found in distributed copies of the package), preserves the downloaded archive, and saves compiler stdout/stderr for inspection.
+
 ## Run the complete calculation
 
-Activate the Python environment, then either run interactively:
+No environment activation is required after setup. The runner automatically uses `.venv/bin/python` when it exists:
 
 ```bash
-conda activate safod-tides
 bash RUN_ON_SHERLOCK.sh
 ```
 
 or submit through SLURM:
 
 ```bash
-conda activate safod-tides
 sbatch scripts/tides/run_tides.sbatch
 ```
 
@@ -113,7 +114,7 @@ The saved `ertid.stdin`, stdout, stderr, and raw strain files make the SPOTL run
 After the scripts finish:
 
 ```bash
-jupyter lab notebooks/SAFOD_tides_model_framework.ipynb
+.venv/bin/jupyter lab notebooks/SAFOD_tides_model_framework.ipynb
 ```
 
 The notebook reads the CSV/JSON products. It does not silently rerun external packages.
