@@ -10,38 +10,45 @@ from common import ROOT, load_config, provenance_base, write_json
 
 # Coordinates are North, East, Down (NED).
 #
-# Thomas et al. (2012) state that they convert SPOTL tidal strain to stress
-# with a linear elastic constitutive equation and resolve the stress onto the
-# SAF. They do not print the constitutive equation or numerical constants in
-# that paragraph. A later Parkfield implementation from the same research
-# lineage (Shelly et al., 2016) explicitly documents plane strain, nu=0.25,
-# and shear modulus G=30 GPa. Model B uses that explicit Parkfield-style
-# closure by default rather than the previous traction-free surface closure.
+# Thomas et al. (2012) specify the architecture
+#     SPOTL strain -> linear elasticity -> fault traction,
+# but do not print the constitutive equation or numerical elastic constants in
+# their Figure-3 methods paragraph. A later Parkfield implementation by van der
+# Elst et al. (2016), using SPOTL for the same deep-SAF tidal-stress problem,
+# explicitly states plane strain, nu=0.25, and shear modulus G=30 GPa. Model B
+# adopts that explicit Parkfield closure and keeps the Thomas geometry as a
+# separate reference calculation from the SAFOD application geometry.
 
 
 def isotropic_plane_strain_stress(enn, eee, ene, shear_modulus_pa, nu):
-    """3-D isotropic Hooke law with eps_DD=eps_ND=eps_ED=0.
+    """3-D isotropic Hooke law under plane strain.
 
-    Stress is positive in tension. ``ene`` is tensor shear strain.
+    NED coordinates. We impose eps_DD = eps_ND = eps_ED = 0. Stress is
+    positive in tension; ``ene`` is tensor shear strain, not engineering shear.
     """
     mu = float(shear_modulus_pa)
     nu = float(nu)
     if not (-1.0 < nu < 0.5):
         raise ValueError("Poisson ratio must lie between -1 and 0.5.")
     lam = 2.0 * mu * nu / (1.0 - 2.0 * nu)
-    tr = np.asarray(enn) + np.asarray(eee)
-    snn = 2.0 * mu * np.asarray(enn) + lam * tr
-    see = 2.0 * mu * np.asarray(eee) + lam * tr
-    sdd = lam * tr
-    sne = 2.0 * mu * np.asarray(ene)
+
+    enn = np.asarray(enn, float)
+    eee = np.asarray(eee, float)
+    ene = np.asarray(ene, float)
+    trace = enn + eee
+
+    snn = 2.0 * mu * enn + lam * trace
+    see = 2.0 * mu * eee + lam * trace
+    sdd = lam * trace
+    sne = 2.0 * mu * ene
     return snn, see, sdd, sne
 
 
 def fault_basis(strike_deg, dip_deg, dip_direction_deg):
-    """Strike, down-dip, and normal unit vectors in NED coordinates."""
-    strike = np.deg2rad(strike_deg)
-    dip = np.deg2rad(dip_deg)
-    dipdir = np.deg2rad(dip_direction_deg)
+    """Return strike, down-dip, and normal unit vectors in NED coordinates."""
+    strike = np.deg2rad(float(strike_deg))
+    dip = np.deg2rad(float(dip_deg))
+    dipdir = np.deg2rad(float(dip_direction_deg))
 
     s = np.array([np.cos(strike), np.sin(strike), 0.0])
     d = np.array([
@@ -56,18 +63,13 @@ def fault_basis(strike_deg, dip_deg, dip_direction_deg):
     return s, d, n
 
 
-def resolve_fault_stress(snn, see, sdd, sne, cfg):
-    """Resolve the tidal stress tensor onto the configured fault.
+def resolve_geometry(snn, see, sdd, sne, strike_deg, dip_deg, dip_direction_deg):
+    """Resolve the plane-strain stress tensor onto one fault geometry.
 
-    FNS is positive in tension/unclamping. Along-strike shear is positive in
-    the configured strike direction.
+    Returns FNS (positive=tension/unclamping), along-strike shear, down-dip
+    shear, and mean normal stress. All time series are mean removed.
     """
-    m = cfg["model_parameters"]
-    s, d, n = fault_basis(
-        m["fault_strike_deg"],
-        m["fault_dip_deg"],
-        m["fault_dip_direction_deg"],
-    )
+    s, d, n = fault_basis(strike_deg, dip_deg, dip_direction_deg)
 
     nt = len(np.asarray(snn))
     sigma = np.zeros((nt, 3, 3), dtype=float)
@@ -80,19 +82,41 @@ def resolve_fault_stress(snn, see, sdd, sne, cfg):
     fns = np.einsum("ti,i->t", traction, n)
     shear_strike = np.einsum("ti,i->t", traction, s)
     shear_dip = np.einsum("ti,i->t", traction, d)
+    mean_normal = (np.asarray(snn) + np.asarray(see) + np.asarray(sdd)) / 3.0
 
     fns -= np.mean(fns)
     shear_strike -= np.mean(shear_strike)
     shear_dip -= np.mean(shear_dip)
-
-    mean_normal = (snn + see + sdd) / 3.0
     mean_normal -= np.mean(mean_normal)
-
     return fns, shear_strike, shear_dip, mean_normal
 
 
+def resolve_safod_geometry(snn, see, sdd, sne, cfg):
+    m = cfg["model_parameters"]
+    return resolve_geometry(
+        snn, see, sdd, sne,
+        m["fault_strike_deg"],
+        m["fault_dip_deg"],
+        m["fault_dip_direction_deg"],
+    )
+
+
+def resolve_thomas_reference_geometry(snn, see, sdd, sne, cfg):
+    """Resolve onto Thomas et al. (2012) vertical N42W reference plane.
+
+    N42W = azimuth 318 deg. For a vertical plane, either horizontal normal
+    direction represents the same plane; 228 deg is used here for dip direction.
+    The along-strike sign is reported with the +strike direction toward N42W.
+    """
+    m = cfg["model_parameters"]
+    strike = float(m.get("thomas_2012_reference_fault_strike_deg", 318.0))
+    dip = float(m.get("thomas_2012_reference_fault_dip_deg", 90.0))
+    dipdir = (strike - 90.0) % 360.0
+    return resolve_geometry(snn, see, sdd, sne, strike, dip, dipdir)
+
+
 def host_moduli(E, nu):
-    return E / (3 * (1 - 2 * nu)), E / (2 * (1 + nu))
+    return E / (3.0 * (1.0 - 2.0 * nu)), E / (2.0 * (1.0 + nu))
 
 
 def model_one_forcing(df, cfg, label):
@@ -104,11 +128,11 @@ def model_one_forcing(df, cfg, label):
     centered = areal - np.mean(areal)
     shape = centered / np.max(np.abs(centered))
 
-    # A -- Niu amplitude shortcut
+    # Model A -- Niu amplitude shortcut.
     stress_A = m["niu_tidal_stress_scale_pa"] * shape
     dv_A = m["niu_stress_sensitivity_pa_inv"] * stress_A
 
-    # B -- Thomas/Parkfield-style strain -> elastic stress -> fault traction.
+    # Model B -- explicit Parkfield-style elastic closure.
     snn, see, sdd, sne = isotropic_plane_strain_stress(
         enn,
         eee,
@@ -116,7 +140,14 @@ def model_one_forcing(df, cfg, label):
         m["model_b_shear_modulus_pa"],
         m["model_b_poisson_ratio"],
     )
-    fns, shear_strike, shear_dip, mean_normal = resolve_fault_stress(
+
+    # Primary SAFOD application geometry.
+    fns, shear_strike, shear_dip, mean_normal = resolve_safod_geometry(
+        snn, see, sdd, sne, cfg
+    )
+
+    # Separate Thomas et al. Figure-3 reference geometry: vertical N42W.
+    th_fns, th_rlss, th_dip_shear, _ = resolve_thomas_reference_geometry(
         snn, see, sdd, sne, cfg
     )
 
@@ -128,28 +159,28 @@ def model_one_forcing(df, cfg, label):
     }
     selected = lookup[m["model_b_stress_proxy"]]
 
-    # Separate transfer assumption: Niu barometric sensitivity -> tidal stress.
+    # Niu barometric sensitivity -> tidal stress is OUR transfer assumption.
     dv_B = m["niu_stress_sensitivity_pa_inv"] * selected
 
-    # C -- direct strain sensitivities from other sites.
+    # Model C -- direct strain-sensitivity transfers from other sites.
     dv_C = -m["takano_strain_sensitivity"] * centered
     dv_C_sheng = -m["sheng_strain_sensitivity"] * centered
 
-    # D -- crack closure, driven by the same selected Model-B stress.
+    # Model D -- mechanistic crack closure, driven by the same selected stress.
     Kh, muh = host_moduli(m["model_d_host_E_pa"], m["model_d_host_nu"])
-    nuh = (3 * Kh - 2 * muh) / (6 * Kh + 2 * muh)
-    Ak = 16 * (1 - nuh**2) / (9 * (1 - 2 * nuh))
-    Amu = 32 * (1 - nuh) * (5 - nuh) / (45 * (2 - nuh))
+    nuh = (3.0 * Kh - 2.0 * muh) / (6.0 * Kh + 2.0 * muh)
+    Ak = 16.0 * (1.0 - nuh**2) / (9.0 * (1.0 - 2.0 * nuh))
+    Amu = 32.0 * (1.0 - nuh) * (5.0 - nuh) / (45.0 * (2.0 - nuh))
     rho = m["model_d_density_kg_m3"]
     mu_target = rho * m["model_d_target_Vs_m_s"]**2
-    rho_c0 = (muh / mu_target - 1) / Amu
-    pref = 0.5 * (Amu * rho_c0) / (1 + Amu * rho_c0)
+    rho_c0 = (muh / mu_target - 1.0) / Amu
+    pref = 0.5 * (Amu * rho_c0) / (1.0 + Amu * rho_c0)
     sigma_hat = pref / m["niu_stress_sensitivity_pa_inv"]
 
     def vel(rc):
-        K = Kh / (1 + Ak * rc)
-        mu = muh / (1 + Amu * rc)
-        vp = np.sqrt((K + 4 * mu / 3) / rho)
+        K = Kh / (1.0 + Ak * rc)
+        mu = muh / (1.0 + Amu * rc)
+        vp = np.sqrt((K + 4.0 * mu / 3.0) / rho)
         vs = np.sqrt(mu / rho)
         return vp, vs
 
@@ -168,11 +199,16 @@ def model_one_forcing(df, cfg, label):
         f"{label}_sigma_EE_pa": see,
         f"{label}_sigma_DD_pa": sdd,
         f"{label}_sigma_NE_pa": sne,
+        # Primary SAFOD geometry.
         f"{label}_FNS_pa": fns,
         f"{label}_along_strike_shear_pa": shear_strike,
         f"{label}_dip_shear_pa": shear_dip,
         f"{label}_mean_normal_stress_pa": mean_normal,
-        # Backward-compatible aliases used by earlier notebook versions.
+        # Thomas et al. (2012) Figure-3 reference geometry.
+        f"{label}_thomas_FNS_pa": th_fns,
+        f"{label}_thomas_RLSS_pa": th_rlss,
+        f"{label}_thomas_dip_shear_pa": th_dip_shear,
+        # Backward-compatible aliases for SAFOD application geometry.
         f"{label}_fault_normal_pa": fns,
         f"{label}_fault_shear_pa": shear_strike,
         f"{label}_model_B_dv_over_v": dv_B,
@@ -185,8 +221,11 @@ def model_one_forcing(df, cfg, label):
         f"{label}_model_D_dVs_over_Vs": dvs,
     })
 
-    max_fns = np.max(np.abs(fns))
-    max_shear = np.max(np.abs(shear_strike))
+    max_fns = float(np.max(np.abs(fns)))
+    max_shear = float(np.max(np.abs(shear_strike)))
+    max_th_fns = float(np.max(np.abs(th_fns)))
+    max_th_rlss = float(np.max(np.abs(th_rlss)))
+
     summary = {
         "forcing": label,
         "model_B_closure": "isotropic_plane_strain",
@@ -197,14 +236,21 @@ def model_one_forcing(df, cfg, label):
             "dip_deg": float(m["fault_dip_deg"]),
             "dip_direction_deg": float(m["fault_dip_direction_deg"]),
         },
+        "thomas_reference_geometry": {
+            "strike_deg": float(m.get("thomas_2012_reference_fault_strike_deg", 318.0)),
+            "dip_deg": float(m.get("thomas_2012_reference_fault_dip_deg", 90.0)),
+        },
         "max_abs_model_A": float(np.max(np.abs(dv_A))),
         "max_abs_model_B": float(np.max(np.abs(dv_B))),
         "max_abs_model_C_takano": float(np.max(np.abs(dv_C))),
         "max_abs_model_D_Vs": float(np.max(np.abs(dvs))),
         "max_abs_model_D_Vp": float(np.max(np.abs(dvp))),
-        "max_abs_FNS_pa": float(max_fns),
-        "max_abs_along_strike_shear_pa": float(max_shear),
-        "FNS_to_shear_amplitude_ratio": float(max_fns / max_shear),
+        "max_abs_SAFOD_FNS_pa": max_fns,
+        "max_abs_SAFOD_along_strike_shear_pa": max_shear,
+        "SAFOD_FNS_to_shear_amplitude_ratio": float(max_fns / max_shear) if max_shear else np.inf,
+        "max_abs_Thomas_FNS_pa": max_th_fns,
+        "max_abs_Thomas_RLSS_pa": max_th_rlss,
+        "Thomas_FNS_to_RLSS_amplitude_ratio": float(max_th_fns / max_th_rlss) if max_th_rlss else np.inf,
         "max_abs_selected_stress_pa": float(np.max(np.abs(selected))),
         "model_D_rho_c0": float(rho_c0),
         "model_D_sigma_hat_pa": float(sigma_hat),
@@ -259,10 +305,11 @@ def main():
         "models": summaries,
         "primary_forcing": cfg["primary_forcing"],
         "model_B_note": (
-            "Thomas et al. (2012) explicitly state strain->linear elasticity->fault resolution "
-            "but do not print the constitutive equation/numerical constants in the Figure-3 methods paragraph. "
-            "This implementation uses the explicit Parkfield plane-strain closure (nu=0.25, G=30 GPa by default) "
-            "documented in Shelly et al. (2016). The subsequent Niu stress->dv/v multiplication remains a separate transfer assumption."
+            "Thomas et al. (2012) specify SPOTL strain -> linear elasticity -> vertical N42W fault resolution, "
+            "but do not print the constitutive equation/numerical elastic constants in the Figure-3 methods paragraph. "
+            "The explicit closure here follows the later Parkfield implementation of van der Elst et al. (2016): "
+            "plane strain, nu=0.25, G=30 GPa by default. Thomas-reference and SAFOD-geometry tractions are both saved. "
+            "The subsequent Niu stress -> dv/v multiplication remains a separate transfer assumption."
         ),
     })
     write_json(a.provenance, provenance_base(__file__, {
