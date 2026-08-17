@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Local environments
+.venv/
+venv/
+.env
+
+# SPOTL download/build products
+external/spotl/
+external/spotl_unpack/
+external/spotl.tar.gz
+
+# Runtime scratch products
+outputs/tides/spotl_work/
+outputs/tides/slurm-*.out
+
+# OS/editor
+.DS_Store
+*.swp
