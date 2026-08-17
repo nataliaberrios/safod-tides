@@ -24,6 +24,8 @@ mkdir -p "$ROOT/external"
 if [[ ! -f "$ARCHIVE" ]]; then
   echo "Downloading official SPOTL distribution (~200 MB)..."
   curl -L --fail --retry 3 "$URL" -o "$ARCHIVE"
+else
+  echo "Using cached SPOTL archive: $ARCHIVE"
 fi
 
 size=$(wc -c < "$ARCHIVE")
@@ -35,51 +37,89 @@ fi
 TMP="$ROOT/external/spotl_unpack"
 rm -rf "$TMP"
 mkdir -p "$TMP"
+echo "Extracting SPOTL archive..."
 tar -xzf "$ARCHIVE" -C "$TMP"
 
-INSTALL=$(find "$TMP" -type f -name install.compile | head -1)
+# The 2013 manual calls the compiler script install.compile, while the
+# distributed archive in some mirrors/releases uses install.comp.
+INSTALL=$(find "$TMP" -type f \( -name 'install.comp' -o -name 'install.compile' \) | head -1 || true)
 if [[ -z "$INSTALL" ]]; then
-  echo "ERROR: could not locate install.compile in archive."
+  echo "ERROR: could not locate install.comp or install.compile in archive."
+  echo "Install-like files found in the archive:"
+  find "$TMP" -maxdepth 4 -type f -name 'install*' -print | sort | head -50 || true
+  echo "Top-level archive entries:"
+  tar -tzf "$ARCHIVE" | head -50 || true
   exit 4
 fi
 
 SRCROOT=$(dirname "$INSTALL")
+INSTALL_NAME=$(basename "$INSTALL")
 rm -rf "$EXT"
 mv "$SRCROOT" "$EXT"
 
-echo "Compiling official SPOTL in $EXT ..."
+echo "SPOTL source root: $EXT"
+echo "Compiler script: $INSTALL_NAME"
 cd "$EXT"
-chmod +x install.compile
-set +e
-./install.compile > install.compile.stdout 2> install.compile.stderr
-rc=$?
-set -e
+chmod +x "$INSTALL_NAME" || true
 
-if (( rc != 0 )) || [[ ! -x "$EXT/bin/ertid" ]]; then
-  echo "First compile attempt failed. Trying a conservative GNU-Fortran compatibility patch."
-  MAKEFILE="$EXT/src/Makefile"
-  if [[ -f "$MAKEFILE" ]]; then
-    cp "$MAKEFILE" "$MAKEFILE.original"
-    python - "$MAKEFILE" <<'PY'
-from pathlib import Path
-import re, sys
-p=Path(sys.argv[1])
-s=p.read_text()
-s=re.sub(r'(?m)^\s*(FC|F77)\s*=.*$', r'\1 = gfortran', s)
-s=re.sub(r'(?m)^\s*CC\s*=.*$', 'CC = gcc', s)
-# Add compatibility flags only if a recognizable flags variable exists.
-if re.search(r'(?m)^\s*FFLAGS\s*=', s):
-    s=re.sub(r'(?m)^(\s*FFLAGS\s*=.*)$', r'\1 -std=legacy -fallow-argument-mismatch', s, count=1)
-p.write_text(s)
-PY
+run_compile() {
+  local tag="$1"
+  set +e
+  bash "./$INSTALL_NAME" > "${INSTALL_NAME}.${tag}.stdout" 2> "${INSTALL_NAME}.${tag}.stderr"
+  local rc=$?
+  set -e
+  return $rc
+}
+
+if run_compile first && [[ -x "$EXT/bin/ertid" ]]; then
+  echo "SPOTL compiled successfully on first attempt."
+else
+  echo "First compile attempt failed. Applying GNU-Fortran compatibility settings and retrying."
+
+  MAKEFILE=""
+  for candidate in "$EXT/src/Makefile" "$EXT/src/MAKEFILE"; do
+    if [[ -f "$candidate" ]]; then
+      MAKEFILE="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$MAKEFILE" ]]; then
+    echo "ERROR: could not find src/Makefile or src/MAKEFILE."
+    exit 5
   fi
-  ./install.compile > install.compile.retry.stdout 2> install.compile.retry.stderr
+
+  if [[ ! -f "$MAKEFILE.original" ]]; then
+    cp "$MAKEFILE" "$MAKEFILE.original"
+  fi
+
+  # Put explicit GNU settings at the END of the makefile so they override
+  # older compiler selections without deleting the original choices.
+  cat >> "$MAKEFILE" <<'EOF'
+
+# --- SAFOD Sherlock compatibility override ---
+FTN = gfortran
+F77 = gfortran
+FC = gfortran
+CC = gcc
+FFLAGS += -O2 -std=legacy -fallow-argument-mismatch -fno-range-check -fno-backslash
+CFLAGS += -c
+# --- end SAFOD Sherlock compatibility override ---
+EOF
+
+  if ! run_compile retry; then
+    echo "ERROR: SPOTL compilation failed after GNU compatibility retry."
+    echo "See:"
+    echo "  $EXT/${INSTALL_NAME}.first.stderr"
+    echo "  $EXT/${INSTALL_NAME}.retry.stderr"
+    exit 6
+  fi
 fi
 
 if [[ ! -x "$EXT/bin/ertid" ]]; then
-  echo "ERROR: SPOTL compilation did not create $EXT/bin/ertid"
-  echo "See $EXT/install.compile*.stderr"
-  exit 5
+  echo "ERROR: compilation finished but did not create $EXT/bin/ertid"
+  echo "See $EXT/${INSTALL_NAME}.*.stdout and *.stderr"
+  exit 7
 fi
 
 echo "SPOTL installed successfully: $EXT/bin/ertid"
