@@ -4,20 +4,37 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-echo "This setup intentionally does not guess Sherlock module names."
+BASE_PYTHON="${BASE_PYTHON:-python}"
+VENV="$ROOT/.venv"
+
+echo "SAFOD tides Sherlock setup"
+echo "root: $ROOT"
+echo "base python: $($BASE_PYTHON --version)"
 echo
 
-if command -v conda >/dev/null 2>&1; then
-  echo "Creating/updating conda environment 'safod-tides' from environment.yml ..."
-  conda env create -f environment.yml 2>/dev/null || conda env update -f environment.yml --prune
-  echo
-  echo "Activate it with:"
-  echo "  conda activate safod-tides"
+# Avoid a full conda solve on Sherlock login nodes.  Python 3.11 is sufficient
+# for this project, and PySolid 0.3.4 publishes CPython-3.11 Linux wheels.
+if [[ ! -x "$VENV/bin/python" ]]; then
+  echo "Creating lightweight virtual environment at $VENV ..."
+  "$BASE_PYTHON" -m venv "$VENV"
 else
-  echo "conda was not found."
-  echo "Use an existing Python environment and run:"
-  echo "  python -m pip install -r requirements.txt"
+  echo "Using existing virtual environment at $VENV"
 fi
+
+echo "Installing/updating Python dependencies with pip ..."
+"$VENV/bin/python" -m pip install --upgrade pip setuptools wheel
+"$VENV/bin/python" -m pip install -r requirements.txt
+
+echo
+"$VENV/bin/python" - <<'PY'
+import sys
+import numpy, pandas, matplotlib, scipy
+import pysolid
+from importlib.metadata import version
+print("Python environment check: PASS")
+print("  python :", sys.version.split()[0])
+print("  pysolid:", version("pysolid"))
+PY
 
 echo
 echo "SPOTL additionally requires gcc, gfortran, and make."
@@ -33,10 +50,15 @@ done
 
 if (( missing )); then
   echo
-  echo "Load a GNU compiler toolchain on Sherlock, then run:"
+  echo "Python setup is complete, but SPOTL still needs a GNU compiler toolchain."
+  echo "Use 'module spider gcc' to see available compiler modules, load one, then run:"
   echo "  bash scripts/tides/install_spotl.sh"
-  echo "Use 'module spider gcc' to see available compiler modules."
 else
   echo
+  echo "GNU compiler toolchain is available. Installing SPOTL ..."
   bash scripts/tides/install_spotl.sh
 fi
+
+echo
+echo "Setup complete. You do NOT need to activate the venv to use RUN_ON_SHERLOCK.sh;"
+echo "the pipeline automatically uses $VENV/bin/python when it exists."
