@@ -12,10 +12,6 @@ echo "root: $ROOT"
 echo "base python: $($BASE_PYTHON --version)"
 echo
 
-# Sherlock's older glibc cannot use some current manylinux_2_27/2_28 wheels.
-# In particular, unconstrained pip may try to build current SciPy from source,
-# which then fails because system OpenBLAS development libraries are unavailable.
-# Use versions that publish CPython-3.11 manylinux_2_17 wheels instead.
 if [[ ! -x "$VENV/bin/python" ]]; then
   echo "Creating lightweight virtual environment at $VENV ..."
   "$BASE_PYTHON" -m venv "$VENV"
@@ -29,17 +25,17 @@ echo "Updating pip/build tooling ..."
 "$PY" -m pip install --upgrade pip setuptools wheel
 
 echo
-echo "Installing binary NumPy/SciPy wheels compatible with older Sherlock glibc ..."
+echo "Installing binary scientific wheels compatible with older Sherlock glibc ..."
 "$PY" -m pip install --only-binary=:all: \
   "numpy==1.26.4" \
-  "scipy==1.13.1"
+  "scipy==1.13.1" \
+  "pandas==2.2.2" \
+  "pillow==10.4.0" \
+  "matplotlib==3.8.4"
 
 echo
-echo "Installing notebook/plotting dependencies ..."
-"$PY" -m pip install \
-  "pandas>=2.0,<3.0" \
-  "matplotlib>=3.7,<4.0" \
-  jupyter nbconvert
+echo "Installing a lightweight notebook kernel (not the full Jupyter stack) ..."
+"$PY" -m pip install "ipykernel>=6.29,<7"
 
 echo
 echo "Installing PySolid build tooling ..."
@@ -47,23 +43,28 @@ echo "Installing PySolid build tooling ..."
 
 echo
 echo "Installing PySolid 0.3.4 from source against the pinned NumPy ABI ..."
-# PySolid's published Linux wheel requires newer glibc than many Sherlock nodes.
-# Build the small Fortran extension locally instead. --no-build-isolation keeps
-# the build on the NumPy 1.26.4 ABI that will be used at runtime.
 "$PY" -m pip install --no-deps --no-build-isolation --no-binary=pysolid "pysolid==0.3.4"
 
 echo
 "$PY" - <<'PY'
 import sys
 import numpy, pandas, matplotlib, scipy
+import PIL
 import pysolid
 from importlib.metadata import version
 print("Python environment check: PASS")
-print("  python :", sys.version.split()[0])
-print("  numpy  :", numpy.__version__)
-print("  scipy  :", scipy.__version__)
-print("  pysolid:", version("pysolid"))
+print("  python    :", sys.version.split()[0])
+print("  numpy     :", numpy.__version__)
+print("  scipy     :", scipy.__version__)
+print("  pandas    :", pandas.__version__)
+print("  pillow    :", PIL.__version__)
+print("  matplotlib:", matplotlib.__version__)
+print("  pysolid   :", version("pysolid"))
 PY
+
+"$PY" -m ipykernel install --user \
+  --name safod-tides \
+  --display-name "SAFOD tides (.venv)" >/dev/null 2>&1 || true
 
 echo
 echo "SPOTL additionally requires gcc, gfortran, and make."
@@ -89,5 +90,6 @@ else
 fi
 
 echo
-echo "Setup complete. You do NOT need to activate the venv to use RUN_ON_SHERLOCK.sh;"
-echo "the pipeline automatically uses $VENV/bin/python when it exists."
+echo "Setup complete."
+echo "For VS Code/Jupyter, choose the kernel: SAFOD tides (.venv)"
+echo "For command-line runs, RUN_ON_SHERLOCK.sh automatically uses $VENV/bin/python."
