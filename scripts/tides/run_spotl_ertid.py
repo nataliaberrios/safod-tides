@@ -53,9 +53,9 @@ def run(cfg, ertid, work):
         "0",
         "45",
         "90",
-        str(f0),
-        str(f45),
-        str(f90),
+        f0.name,
+        f45.name,
+        f90.name,
     ]
     stdin="\n".join(lines)+"\n"
 
