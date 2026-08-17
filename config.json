@@ -1,0 +1,49 @@
+{
+  "site": {
+    "name": "SAFOD Pilot Hole",
+    "latitude_deg": 35.97425794,
+    "longitude_deg": -120.55210714
+  },
+  "window": {
+    "start_utc": "2026-06-16T23:48:00+00:00",
+    "end_utc": "2026-06-17T23:44:00+00:00",
+    "sample_seconds": 60
+  },
+  "package_settings": {
+    "pysolid_version": "0.3.4",
+    "pysolid_spatial_step_deg": 0.005,
+    "spotl_version": "3.3.0.2",
+    "spotl_official_url": "https://igppweb.ucsd.edu/~agnew/Spotl/spotl.tar.gz",
+    "spotl_strain_azimuths_deg": [
+      0.0,
+      45.0,
+      90.0
+    ]
+  },
+  "model_parameters": {
+    "niu_stress_sensitivity_pa_inv": 2.4e-07,
+    "niu_tidal_stress_scale_pa": 240.0,
+    "youngs_modulus_pa": 51900000000.0,
+    "poisson_ratio": 0.24,
+    "fault_strike_deg": 140.0,
+    "fault_dip_deg": 70.0,
+    "fault_dip_direction_deg": 230.0,
+    "model_b_stress_proxy": "fault_normal",
+    "takano_strain_sensitivity": 69000.0,
+    "sheng_strain_sensitivity": 62500.0,
+    "model_d_host_E_pa": 70700000000.0,
+    "model_d_host_nu": 0.24,
+    "model_d_density_kg_m3": 2700.0,
+    "model_d_target_Vs_m_s": 2873.636,
+    "model_d_target_Vp_m_s": 5106.36
+  },
+  "awd_benchmarks": {
+    "deep_outbound_null_95": 0.00184,
+    "deep_outbound_reliable": 0.005,
+    "deep_return_null_95": 0.00305,
+    "deep_return_reliable": 0.01,
+    "nano_null_95": 0.00325,
+    "nano_reliable": 0.01
+  },
+  "primary_forcing": "pysolid"
+}
