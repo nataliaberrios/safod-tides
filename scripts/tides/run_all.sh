@@ -33,7 +33,12 @@ $PYTHON_BIN scripts/tides/run_analytic_degree2.py
 $PYTHON_BIN scripts/tides/compare_forcing.py
 $PYTHON_BIN scripts/tides/run_models.py
 
+# Keep the presentation notebook synchronized with the current Model-B
+# formulation without putting package installation/Fortran code into it.
+$PYTHON_BIN scripts/tides/patch_notebook_model_b.py
+
 echo
 echo "Pipeline complete."
 echo "Products are in outputs/tides/"
-echo "Open notebooks/SAFOD_tides_model_framework.ipynb"
+echo "Notebook Model B / Thomas Figure 3 sections are synchronized."
+echo "Open notebooks/SAFOD_tides_model_framework.ipynb and Run All."
