@@ -74,7 +74,7 @@ run_compile() {
 if run_compile first && [[ -x "$EXT/bin/ertid" ]]; then
   echo "SPOTL compiled successfully on first attempt."
 else
-  echo "First compile attempt failed. Applying GNU-Fortran compatibility settings and retrying."
+  echo "First compile attempt failed. Applying GNU compatibility settings and retrying."
 
   MAKEFILE=""
   for candidate in "$EXT/src/Makefile" "$EXT/src/MAKEFILE"; do
@@ -91,6 +91,18 @@ else
 
   if [[ ! -f "$MAKEFILE.original" ]]; then
     cp "$MAKEFILE" "$MAKEFILE.original"
+  fi
+
+  # Modern GCC rejects the old implicit-int declarations in SPOTL's C helper.
+  # Both functions return int, so make the return type explicit before retrying.
+  ISPAND="$EXT/src/ispand.c"
+  if [[ -f "$ISPAND" ]]; then
+    if ! grep -q '^int ispand (' "$ISPAND"; then
+      sed -i 's/^ispand (/int ispand (/' "$ISPAND"
+    fi
+    if ! grep -q '^int ispand_(' "$ISPAND"; then
+      sed -i 's/^ispand_(/int ispand_(/' "$ISPAND"
+    fi
   fi
 
   # Put explicit GNU settings at the END of the makefile so they override
