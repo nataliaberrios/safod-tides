@@ -73,7 +73,7 @@ git pull
 bash scripts/tides/setup_sherlock.sh
 ```
 
-The setup uses a project-local Python virtual environment (`.venv`) rather than solving a new conda environment on a Sherlock login node. The Python dependencies are pinned to versions that have binary wheels compatible with Sherlock's older system libraries; PySolid itself is built locally against the pinned NumPy ABI.
+The setup uses a project-local Python virtual environment (`.venv`) rather than a conda environment. It installs the pinned scientific Python stack, `nbformat`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
 
 If `gfortran`, `gcc`, or `make` is missing, load a GNU compiler toolchain first:
 
@@ -83,7 +83,7 @@ module spider gcc
 bash scripts/tides/install_spotl.sh
 ```
 
-The SPOTL installer accepts both `install.compile` and `install.comp`, preserves the downloaded archive, and saves compiler stdout/stderr for inspection.
+The SPOTL installer accepts both `install.compile` and `install.comp`, preserves the downloaded archive, saves compiler stdout/stderr for inspection, applies legacy GNU-Fortran flags when needed, and patches SPOTL's old `ispand.c` implicit-`int` declarations for modern GCC.
 
 ## Run the calculation
 
@@ -133,17 +133,32 @@ outputs/tides/
 
 The model output includes the primary vertical-SAF FNS/RLSS series and separate Thomas-N42W Figure-3-analogue FNS/RLSS series for each available forcing package.
 
-## Open the notebook
+## Open the notebook in Sherlock OnDemand JupyterLab
 
-After the pipeline finishes:
+The supported interactive workflow is Sherlock Open OnDemand JupyterLab.
 
-```bash
-.venv/bin/jupyter lab notebooks/SAFOD_tides_model_framework.ipynb
+1. Run the first-time setup above from a Sherlock terminal.
+2. If JupyterLab was already running during setup, stop that OnDemand JupyterLab job and launch a new one so the new kernelspec is discovered.
+3. Open `notebooks/SAFOD_tides_model_framework.ipynb`.
+4. Choose **Kernel -> Change Kernel -> `SAFOD tides (.venv)`**.
+5. Run All.
+
+To verify that JupyterLab is using the correct environment, run:
+
+```python
+import sys
+print(sys.executable)
 ```
 
-or open the repository through VS Code Remote SSH and select the project `.venv` kernel. Run All in the notebook. The notebook reads the CSV/JSON products and does not silently rerun external packages.
+It should print a path ending in:
 
-`RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B and Thomas-Figure-3 explanation with the current implementation before you open it.
+```text
+/safod-tides/.venv/bin/python
+```
+
+Do not run `conda activate safod-tides`; this repository uses the project-local `.venv`, not a conda environment.
+
+The notebook reads the CSV/JSON products and does not silently rerun external packages. `RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B and Thomas-Figure-3 explanation with the current implementation before you open it.
 
 ## Reproducibility rule
 
