@@ -34,8 +34,8 @@ echo "Installing binary scientific wheels compatible with older Sherlock glibc .
   "matplotlib==3.8.4"
 
 echo
-echo "Installing a lightweight notebook kernel (not the full Jupyter stack) ..."
-"$PY" -m pip install "ipykernel>=6.29,<7"
+echo "Installing notebook support ..."
+"$PY" -m pip install "ipykernel>=6.29,<7" nbformat
 
 echo
 echo "Installing PySolid build tooling ..."
@@ -51,6 +51,7 @@ import sys
 import numpy, pandas, matplotlib, scipy
 import PIL
 import pysolid
+import nbformat
 from importlib.metadata import version
 print("Python environment check: PASS")
 print("  python    :", sys.version.split()[0])
@@ -60,11 +61,14 @@ print("  pandas    :", pandas.__version__)
 print("  pillow    :", PIL.__version__)
 print("  matplotlib:", matplotlib.__version__)
 print("  pysolid   :", version("pysolid"))
+print("  nbformat  :", nbformat.__version__)
 PY
 
+echo
+echo "Registering Jupyter kernel..."
 "$PY" -m ipykernel install --user \
   --name safod-tides \
-  --display-name "SAFOD tides (.venv)" >/dev/null 2>&1 || true
+  --display-name "SAFOD tides (.venv)"
 
 echo
 echo "SPOTL additionally requires gcc, gfortran, and make."
@@ -91,5 +95,6 @@ fi
 
 echo
 echo "Setup complete."
-echo "For VS Code/Jupyter, choose the kernel: SAFOD tides (.venv)"
+echo "For Sherlock OnDemand JupyterLab, restart the JupyterLab session after first-time setup"
+echo "and choose the kernel: SAFOD tides (.venv)"
 echo "For command-line runs, RUN_ON_SHERLOCK.sh automatically uses $VENV/bin/python."
