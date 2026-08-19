@@ -203,9 +203,15 @@ A rigorous dipping-fault calculation should instead start from a **full 3-D dept
 """.strip()
 
 AWD_MD = r"""
-# 4. Models A–D and AWD sensitivity context
+# 4. SAFOD model amplitudes and AWD sensitivity
 
-Model A is the Niu 240-Pa amplitude shortcut. Model B is the explicit elastic-stress calculation above followed by the Niu transfer. Model C applies direct strain sensitivities from other sites as context. Model D uses a stress-dependent crack-compliance model.
+For the direct comparison to the AWD experiment, the table below includes only branches intended as **SAFOD-specific or SAFOD-motivated predictions**:
+
+- **Model A:** the Niu 240-Pa amplitude shortcut.
+- **Model B:** explicit tidal strain → elastic stress → vertical-SAF fault-normal stress → Niu transfer.
+- **Model D:** a stress-dependent crack-compliance model evaluated with the SAFOD parameter choices used here.
+
+**Model C (Takano) is intentionally excluded from this final detectability table.** Takano's published strain sensitivity comes from a different geologic setting and is retained elsewhere in the notebook only as literature context for the range of strain sensitivities observed at other sites. It should not be read as an expected SAFOD tidal response or ranked directly against the AWD threshold.
 
 The AWD comparison uses the **current synthetic injection–recovery benchmark**, defined as the imposed change in apparent along-fiber speed required for the method to recover the **correct direction in 90% of tests**. These thresholds are sensitivity limits measured by injecting synthetic changes into real field variability; they are **not measured natural velocity changes**.
 
@@ -219,7 +225,7 @@ For the matched **700 m cable-length comparison**, Nano is **0.55%** (0.41–0.8
 
 Deep outbound has the lowest full-cable point estimate, but Nano and Deep outbound cannot be confidently ranked because their uncertainty overlaps in the formal paired comparison. Deep outbound is more sensitive than Deep return.
 
-The table below uses the **full-cable Deep outbound 90%-correct-recovery threshold of 0.40%** as the single observational benchmark against which the model amplitudes are compared.
+The table below uses the **full-cable Deep outbound 90%-correct-recovery threshold of 0.40%** as the single observational benchmark against which the SAFOD model amplitudes are compared.
 
 No branch constitutes a tidal detection.
 """.strip()
@@ -230,23 +236,25 @@ if models is not None:
     deep90 = benchmark["threshold"]
     summary_rows=[]
     for forcing in ["pysolid","spotl"]:
+        # Takano/Model C is literature context only and is deliberately excluded
+        # from this direct SAFOD detectability comparison.
         mapping={
             "A":f"{forcing}_model_A_dv_over_v",
             "B":f"{forcing}_model_B_dv_over_v",
-            "C (Takano)":f"{forcing}_model_C_takano_dv_over_v",
             "D (Vs)":f"{forcing}_model_D_dVs_over_Vs",
             "D (Vp)":f"{forcing}_model_D_dVp_over_Vp",
         }
-        if all(col in models.columns for col in mapping.values()):
-            for name,col in mapping.items():
-                amp=np.nanmax(np.abs(models[col]))
-                summary_rows.append({
-                    "forcing":forcing,
-                    "model":name,
-                    "max_abs_dv/v":amp,
-                    "max_abs_percent":100*amp,
-                    "Deep outbound 90% threshold / model":deep90/amp,
-                })
+        for name,col in mapping.items():
+            if col not in models.columns:
+                continue
+            amp=np.nanmax(np.abs(models[col]))
+            summary_rows.append({
+                "forcing":forcing,
+                "model":name,
+                "max_abs_dv/v":amp,
+                "max_abs_percent":100*amp,
+                "Deep outbound 90% threshold / model":deep90/amp,
+            })
     summary=pd.DataFrame(summary_rows)
     print(
         "AWD benchmark: full-cable Deep outbound 90%-correct-direction threshold "
@@ -288,7 +296,13 @@ def main():
                 primary_code_done = True
         elif cell.cell_type == "markdown" and src.lstrip().startswith("# 4. Models A–D and AWD"):
             cell.source = AWD_MD
-        elif cell.cell_type == "code" and ("Deep reliable / model" in src or "deep_outbound_reliable" in src):
+        elif cell.cell_type == "markdown" and src.lstrip().startswith("# 4. SAFOD model amplitudes and AWD sensitivity"):
+            cell.source = AWD_MD
+        elif cell.cell_type == "code" and (
+            "Deep reliable / model" in src
+            or "deep_outbound_reliable" in src
+            or "Deep outbound 90% threshold / model" in src
+        ):
             if not awd_code_done:
                 cell.source = AWD_CODE
                 awd_code_done = True
