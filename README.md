@@ -1,73 +1,62 @@
 # SAFOD solid-Earth tides — Sherlock reproducible framework
 
-This repository separates **scientific execution** from **scientific presentation**.
+This repository calculates the June 16–17, 2026 solid-Earth tide at SAFOD, propagates the forcing through explicitly labeled response scenarios, compares those amplitudes with AWD injection–recovery sensitivity, and renders the results in a reproducible notebook.
 
-- `scripts/tides/` contains the package calls and Models A–D.
-- `outputs/tides/` contains generated numerical products and run provenance.
-- `notebooks/SAFOD_tides_model_framework.ipynb` reads those products and explains them.
-- `config.json` contains the editable site/time/model parameters.
-
-The notebook **does not install packages or compile Fortran**.
-
-## What gets run
-
-The pipeline runs:
-
-1. **PySolid 0.3.4**
-   - solid-Earth-tide ENU displacement at SAFOD
-   - a spatial stencil around SAFOD
-   - horizontal strain tensor from displacement gradients
-
-2. **SPOTL 3.3.0.2 / `ertid`**, when the executable is available
-   - official Scripps code
-   - extensional strain at 0°, 45°, and 90°
-   - reconstruction of `eps_NN`, `eps_EE`, and `eps_NE`
-
-3. **Transparent degree-2 calculation**
-   - independent Sun/Moon + PREM Love-number calculation
-
-4. **Forcing comparison**, when both package results exist
-   - correlations, amplitudes, RMS residuals
-
-5. **Models A–D**
-   - Model A: Niu 240 Pa shortcut
-   - Model B: tidal strain -> linear elasticity -> vertical-SAF FNS/RLSS -> Niu transfer
-   - Model C: direct published strain sensitivity used as literature context, not as a SAFOD detectability prediction
-   - Model D: crack closure -> effective moduli -> Vp/Vs
-
-Every scientific script writes a JSON provenance record containing the host, time, Python version, script hash, and, when available, git commit.
-
-## Model B and the Thomas et al. Figure 3 analogue
-
-Model B was revised to remove an unjustified step in the earlier formulation. It **no longer imposes plane strain and no longer projects a surface-derived tensor onto the approximately 70°-dipping SAF**.
-
-Thomas et al. (2012) document the workflow
+The repository separates **scientific execution** from **scientific presentation**:
 
 ```text
-SPOTL surface tidal strain
-    -> linear elastic constitutive equation
-    -> stress resolved onto a vertical N42W San Andreas plane
-    -> FNS and RLSS
+scripts/tides/                              calculations and notebook patchers
+outputs/tides/                              generated products and provenance
+notebooks/SAFOD_tides_model_framework.ipynb presentation notebook
+config.json                                 site, model, AWD, and depth-scenario settings
+RUN_ON_SHERLOCK.sh                          complete scientific pipeline
+MAKE_NOTEBOOK_HTML.sh                       executed notebook + static HTML
 ```
 
-For the body tide they argue that the very long wavelength makes surface strain representative of strain at their 25 km source depth. Their paragraph 13 does not specify a plane-strain or plane-stress closure and does not tabulate the exact elastic constants used in Figure 3.
+The notebook does not install packages or compile Fortran.
 
-The revised Model B therefore does the following:
+## Scientific hierarchy
 
-1. Uses the free-surface condition only to recover the missing **surface volumetric strain / strain trace** from the horizontal strain tensor.
-2. Evaluates the full isotropic Hooke law for the horizontal stress components.
-3. Resolves FNS and RLSS onto a **vertical** receiver plane at the local SAF strike.
-4. Uses compression-positive FNS for the primary Niu stress-to-dv/v transfer; the RLSS transfer is also saved as a sensitivity branch.
+### Tidal forcing
 
-The approximately 70° SW dip is retained as geologic context but is not used until a defensible full 3-D depth-dependent strain tensor is available.
+The pipeline calculates body-tide strain three ways:
 
-The notebook contains a **Thomas et al. Figure-3-style analogue for the June 16–17, 2026 SAFOD window**. It plots FNS and RLSS in kPa on a vertical N42W plane. It is not labeled as an exact reproduction because Thomas et al. do not tabulate all Figure-3 elastic parameters and because the present calculation is body tide only.
+1. **PySolid 0.3.4** — displacement on a spatial stencil, differentiated to obtain horizontal strain;
+2. **SPOTL `ertid`** — extensional strain at 0°, 45°, and 90°, reconstructed as `eps_NN`, `eps_EE`, and `eps_NE`;
+3. **transparent degree-2 calculation** — independent Sun/Moon and Love-number check.
+
+The PySolid/SPOTL comparison constrains uncertainty in the forcing calculation.
+
+### Stress construction
+
+The current mechanical benchmark is
+
+```text
+surface horizontal tidal strain
+    -> traction-free surface strain trace
+    -> 3-D isotropic Hooke law
+    -> horizontal stress
+    -> FNS and RLSS on a vertical SAF receiver plane
+```
+
+It does **not** impose plane strain and does not project a surface-derived tensor onto the approximately 70°-dipping fault. A dipping-fault calculation requires a full 3-D depth-dependent strain tensor.
+
+The notebook also contains a Thomas et al. (2012) Figure-3-style analogue on a vertical N42W plane. It is a transparent benchmark, not an exact reproduction of their undocumented parameter choices.
+
+### Response calculations do not all have the same role
+
+- **240-Pa Niu calculation:** preliminary order-of-magnitude reference only. It does not calculate the June 2026 tide and is excluded from the final detectability table.
+- **Model B:** calculated fault-normal tidal stress multiplied directly by Niu's SAFOD barometric stress-sensitivity coefficient.
+- **Takano/Model C:** external literature context from a different geologic setting. It is excluded from the final SAFOD detectability table.
+- **Model D:** stress-dependent crack model yielding formation-scale `dVp/Vp` and `dVs/Vs`.
+
+Model D is **not independent of Niu in absolute amplitude**. The current implementation uses Niu's coefficient to calibrate its crack stress scale, so agreement between Model B and Model-D `dVs/Vs` is partly built into the calibration. Model D adds constitutive structure and separates `Vp` from `Vs`; it does not provide an independent amplitude validation.
+
+The AWD observable is an apparent along-fiber propagation speed, not automatically intrinsic formation `Vp` or `Vs`.
 
 ## First-time Sherlock setup
 
-The workflow below was validated on Sherlock with Python 3.11.4 and GCC 14.2.0.
-
-Do this from a Sherlock terminal on a login node because the SPOTL archive is about 200 MB:
+The installation workflow was validated on Sherlock with Python 3.11.4 and GCC 14.2.0. Run this from a Sherlock terminal on a login node because the SPOTL archive is approximately 200 MB:
 
 ```bash
 git clone git@github.com:nataliaberrios/safod-tides.git
@@ -77,20 +66,20 @@ module load gcc/14.2.0
 bash scripts/tides/setup_sherlock.sh
 ```
 
-If the repository is already cloned, use:
+For an existing clone:
 
 ```bash
-cd safod-tides
+cd /path/to/safod-tides
 git pull
 module load gcc/14.2.0
 bash scripts/tides/setup_sherlock.sh
 ```
 
-The setup script uses a project-local Python virtual environment (`.venv`), not a conda environment. It installs the pinned scientific Python stack, a Sherlock-compatible `pyzmq` wheel, `nbformat`, `nbconvert`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
+The setup script creates a project-local `.venv`; it does not create a conda environment. It installs the pinned scientific stack, a Sherlock-compatible `pyzmq` wheel, `nbformat`, `nbconvert`, the `SAFOD tides (.venv)` kernel, PySolid built against the pinned NumPy ABI, and SPOTL.
 
-For SPOTL, the validated Sherlock compiler is GCC 14.2.0. The installer also applies the legacy GNU-Fortran compatibility flags and patches SPOTL's old `ispand.c` implicit-`int` declarations required by modern GCC.
+The SPOTL installer applies the required legacy GNU-Fortran flags and patches the old `ispand.c` implicit-`int` declarations for modern GCC.
 
-A successful setup should end with messages indicating:
+A successful setup ends with messages like:
 
 ```text
 Python environment check: PASS
@@ -99,158 +88,176 @@ SPOTL installed successfully: .../external/spotl/bin/ertid
 Setup complete.
 ```
 
-Do **not** run `conda activate safod-tides`; there is no conda environment for this repository.
+Do **not** run `conda activate safod-tides`.
 
-## Run the calculation
+## Run the full calculation
 
-No environment activation is required after setup. The runner automatically uses `.venv/bin/python` when it exists:
+No environment activation is needed:
 
 ```bash
 bash RUN_ON_SHERLOCK.sh
 ```
 
-A successful complete run should end with:
+The pipeline runs the tide packages, forcing comparison, Models A–D, the depth-dependent sensitivity scenarios, and both notebook synchronization steps.
+
+A successful run ends with:
 
 ```text
-Updated Model B / Thomas Figure 3 / AWD sensitivity sections in .../notebooks/SAFOD_tides_model_framework.ipynb
 Pipeline complete.
-Products are in outputs/tides/
-Notebook Model B / Thomas Figure 3 sections are synchronized.
+Products are in outputs/tides/.
+Notebook mechanics, model hierarchy, AWD benchmark, and depth-sensitivity sections are synchronized.
 ```
 
-The complete validated run includes PySolid, the transparent degree-2 forcing, SPOTL `ertid`, package comparison, Models A–D, and notebook synchronization.
-
-The SLURM wrapper is also available:
+A SLURM wrapper is also available:
 
 ```bash
 sbatch scripts/tides/run_tides.sbatch
 ```
 
-## Outputs
-
-A complete run can create:
+## Main outputs
 
 ```text
 outputs/tides/
     pysolid_tides.csv
     pysolid_provenance.json
-
     spotl_ertid_tides.csv
     spotl_provenance.json
-    spotl_work/
-        ertid.stdin
-        ertid.stdout
-        ertid.stderr
-        strain_az000.txt
-        strain_az045.txt
-        strain_az090.txt
-
     analytic_degree2_tides.csv
     analytic_degree2_provenance.json
-
     forcing_comparison.csv
     forcing_comparison_provenance.json
-
     model_results.csv
     model_summary.json
     model_provenance.json
+
+    depth_sensitivity_profiles.csv
+    depth_sensitivity_scenarios.csv
+    depth_sensitivity_required_shallow_multiplier.csv
+    depth_sensitivity_required_shallow_multiplier.png
+    depth_sensitivity_provenance.json
 ```
 
-The model output includes the primary vertical-SAF FNS/RLSS series and separate Thomas-N42W Figure-3-analogue FNS/RLSS series for each available forcing package.
+SPOTL intermediate input/output files are stored in `outputs/tides/spotl_work/`.
 
-## Generate a viewable notebook without waiting for OnDemand
+## Depth-dependent sensitivity scenarios
 
-If Sherlock OnDemand is slow to allocate a JupyterLab session, the notebook can be executed and exported to a static HTML file directly from a Sherlock terminal.
+The scenario calculation makes the decision chain explicit:
 
-After the scientific pipeline has completed, run:
+```text
+tidal fault-normal stress
+    -> depth-dependent stress sensitivity S_sigma(z)
+    -> local dv/v(z,t)
+    -> assumed AWD interval weighting
+    -> comparison with recovery threshold
+```
+
+It parameterizes a shallow enhancement relative to Niu's approximately 1-km calibration and reports how large the shallow multiplier would have to be for each configured interval to reach the AWD benchmark.
+
+The current scenario:
+
+- holds the Model-B tidal-stress history fixed with depth;
+- varies only the stress-to-velocity sensitivity;
+- assumes uniform weighting within each interval;
+- uses the global full-cable Deep-outbound 0.40% threshold as a labeled placeholder until interval-specific thresholds exist.
+
+This is not a 3-D tide simulation and not yet an empirical depth-localized AWD result.
+
+The full workflow, hinge-shaped localized delay operator, trial schema, and interpretation limits are documented in:
+
+```text
+docs/DEPTH_DEPENDENT_AWD_WORKFLOW.md
+```
+
+### Summarize future depth-localized AWD trials
+
+The raw AWD injection code should export the schema in:
+
+```text
+inputs/awd_depth_localized_trials_template.csv
+```
+
+Then run:
+
+```bash
+.venv/bin/python scripts/tides/summarize_awd_depth_trials.py \
+  path/to/awd_depth_localized_trials.csv \
+  --output-dir outputs/tides
+```
+
+After scientific review, place the accepted thresholds where the tide pipeline expects them:
+
+```bash
+cp outputs/tides/awd_depth_localized_thresholds.csv \
+   inputs/awd_depth_localized_thresholds.csv
+
+bash RUN_ON_SHERLOCK.sh
+```
+
+Window-specific thresholds will then replace the global placeholder where available.
+
+## Generate a viewable notebook without OnDemand
+
+After the pipeline completes:
 
 ```bash
 bash MAKE_NOTEBOOK_HTML.sh
 ```
 
-This command uses the registered `safod-tides` kernel to execute the notebook from top to bottom and writes:
+This writes:
 
 ```text
 notebooks/SAFOD_tides_model_framework.executed.ipynb
 notebooks/SAFOD_tides_model_framework.executed.html
 ```
 
-The `.html` file contains the rendered Markdown, equations, tables, and figures and can be viewed in any web browser. It is a read-only visualization of the executed notebook; JupyterLab is only needed when you want to edit cells interactively.
-
-To copy the HTML from Sherlock to a Mac, run this from a **local Mac terminal**, not from inside Sherlock:
+The HTML contains rendered equations, tables, and figures. To copy it to a Mac, run this from a **local Mac terminal**, not from Sherlock:
 
 ```bash
 scp nberrios@login.sherlock.stanford.edu:/home/groups/ettore88/nberrios/safod-tides/notebooks/SAFOD_tides_model_framework.executed.html ~/Downloads/
 ```
 
-Then open `~/Downloads/SAFOD_tides_model_framework.executed.html` in a browser.
+Other users should substitute their username and clone path.
 
-If another user clones the repository, replace `nberrios` and the group path in the `scp` command with that user's Sherlock username and clone location.
+## Open interactively in Sherlock OnDemand
 
-## Open the notebook in Sherlock OnDemand JupyterLab
+1. Stop and restart an existing OnDemand JupyterLab job after first-time setup so the kernel is rediscovered.
+2. Open `notebooks/SAFOD_tides_model_framework.ipynb`.
+3. Choose **Kernel -> Change Kernel -> SAFOD tides (.venv)**.
+4. Run All.
 
-For interactive editing, use Sherlock Open OnDemand JupyterLab.
-
-1. Run the first-time setup above from a Sherlock terminal.
-2. If JupyterLab was already running during setup, stop that OnDemand JupyterLab job and launch a new one so the new kernelspec is discovered.
-3. Open `notebooks/SAFOD_tides_model_framework.ipynb`.
-4. Choose **Kernel -> Change Kernel -> `SAFOD tides (.venv)`**.
-5. Run All.
-
-To verify that JupyterLab is using the correct environment, run:
+Verify the environment with:
 
 ```python
 import sys
 print(sys.executable)
 ```
 
-It should print a path ending in:
+The path should end in `/safod-tides/.venv/bin/python`.
 
-```text
-/safod-tides/.venv/bin/python
-```
-
-The notebook reads the CSV/JSON products and does not silently rerun external packages. `RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B, Thomas-Figure-3, and AWD-sensitivity explanation with the current implementation before you open it.
-
-## Re-running later
-
-After the first successful setup, you normally only need:
+## Normal later use
 
 ```bash
-cd safod-tides
+cd /path/to/safod-tides
 git pull
 module load gcc/14.2.0
 bash RUN_ON_SHERLOCK.sh
-```
-
-To regenerate the viewable HTML afterward:
-
-```bash
 bash MAKE_NOTEBOOK_HTML.sh
 ```
 
-You do not need to recreate `.venv` or reinstall PySolid/SPOTL unless the environment or compiled SPOTL installation has been deleted.
+You do not need to recreate `.venv` or reinstall SPOTL unless those installations were deleted.
 
-## Reproducibility rule
+## Interpretation ceiling
 
-A package curve is shown as a package result only if its numerical output exists. The notebook's provenance table separately reports whether the corresponding provenance record exists.
-
-The transparent degree-2 calculation is an independent check, not a relabeled package result.
+- PySolid and SPOTL constrain body-tide forcing; they do not determine the local constitutive response.
+- Model B transfers a barometric coefficient measured near 1 km to tidal fault-normal loading.
+- Model D shares that Niu calibration and predicts intrinsic formation velocities, not the AWD apparent mode directly.
+- The depth scenarios are parameter studies until localized injections provide empirical interval-specific measurement sensitivity.
+- Deep coordinate-to-depth registration remains provisional; Deep interval results should be labeled in along-fiber coordinates until independently established.
+- No tidal detection is claimed.
 
 ## Key sources
 
-- Thomas, A. M., et al. (2012), *Tidal triggering of low frequency earthquakes near Parkfield, California*, JGR Solid Earth, DOI `10.1029/2011JB009036`.
+- Thomas, A. M., et al. (2012), *JGR Solid Earth*, DOI `10.1029/2011JB009036`.
 - Agnew, D. C. (2012), *SPOTL: Some Programs for Ocean-Tide Loading*.
-- Johnson, C. W., Fu, Y., & Bürgmann, R. (2017), JGR Solid Earth, DOI `10.1002/2017JB014778`.
-- Niu, F., et al. (2008), Nature, DOI `10.1038/nature07111`.
-- Boness, N. L., & Zoback, M. D. (2004), GRL, DOI `10.1029/2003GL019020`.
-
-## Important model caveats
-
-- PySolid and SPOTL constrain the body-tide forcing; they do not determine the local stress-to-AWD-velocity constitutive law.
-- The revised Model B is a **vertical-fault surface-strain stress benchmark**, not the exact tidal stress tensor along the approximately 1 km-deep DAS interval.
-- A true approximately 70° dipping-fault calculation requires a full 3-D depth-dependent strain tensor.
-- Niu's coefficient is an empirical SAFOD barometric sensitivity measured near 1 km, not a universal tidal sensitivity.
-- Model C / Takano is retained as literature context from a different site and is not used as a direct SAFOD AWD detectability prediction.
-- Model D predicts formation-scale elastic `Vp`/`Vs`; the AWD observable is a coherent borehole-mode apparent velocity.
-- No tidal detection is claimed.
+- Niu, F., et al. (2008), *Nature*, DOI `10.1038/nature07111`.
+- Boness, N. L., & Zoback, M. D. (2004), *GRL*, DOI `10.1029/2003GL019020`.
