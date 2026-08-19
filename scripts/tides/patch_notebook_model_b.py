@@ -340,6 +340,27 @@ if models is not None:
 '''.strip()
 
 
+LIMITATIONS_MD = """
+## 5. Interpretation and limitations
+
+The PySolid/SPOTL comparison addresses uncertainty in the calculated tidal forcing. The Thomas-style Figure 3 analogue checks the stress construction. The final stress-to-apparent-velocity step remains the least constrained part.
+
+Important limitations:
+
+- The current Model B does **not** impose plane strain. It uses a free-surface condition to recover the surface strain trace, applies isotropic Hooke law to the horizontal stresses, and resolves traction on a vertical SAF plane.
+- This surface-derived calculation is a stress benchmark, not the exact 3-D tidal stress tensor along the approximately 1 km-deep DAS interval. A dipping-fault calculation requires a full 3-D depth-dependent strain tensor.
+- Niu's coefficient is an empirical barometric sensitivity, not a universal tidal coefficient.
+- Model D predicts formation-scale Vp/Vs, not the AWD guided apparent velocity.
+- No tidal response is claimed to have been detected in the AWD experiment.
+
+## References
+
+- Thomas et al. (2012), JGR Solid Earth, DOI `10.1029/2011JB009036`.
+- van der Elst et al. (2016), PNAS, DOI `10.1073/pnas.1524316113`.
+- Agnew (2012), SPOTL.
+- Niu et al. (2008), Nature, DOI `10.1038/nature07111`.
+""".strip()
+
 def main():
     if not NOTEBOOK.exists():
         raise FileNotFoundError(NOTEBOOK)
@@ -384,6 +405,9 @@ def main():
             if not awd_code_done:
                 cell.source=AWD_CODE
                 awd_code_done=True
+
+        elif cell.cell_type=="markdown" and src.lstrip().startswith("## 5. Interpretation and limitations"):
+            cell.source=LIMITATIONS_MD
 
     if not any(c.cell_type=="markdown" and "## 3.4 Mechanical scope" in c.source for c in nb.cells):
         insert_at=None
