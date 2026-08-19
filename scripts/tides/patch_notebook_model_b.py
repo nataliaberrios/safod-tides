@@ -105,7 +105,6 @@ else:
             available.append(forcing)
             good = models[["time_utc", fns_col, rlss_col]].dropna()
             plt.figure(figsize=(11,5))
-            # Match the component colors in Thomas et al. Figure 3.
             plt.plot(good.time_utc, good[fns_col]/1000.0,
                      color="navy", linewidth=1.7, label="FNS")
             plt.plot(good.time_utc, good[rlss_col]/1000.0,
@@ -203,6 +202,64 @@ It is sufficient for the Thomas-Figure-3-style FNS/RLSS diagnostic and avoids pr
 A rigorous dipping-fault calculation should instead start from a **full 3-D depth-dependent strain tensor** and then apply isotropic or anisotropic elasticity at depth. That is the next mechanical refinement, not another arbitrary plane-stress/plane-strain closure.
 """.strip()
 
+AWD_MD = r"""
+# 4. Models A–D and AWD sensitivity context
+
+Model A is the Niu 240-Pa amplitude shortcut. Model B is the explicit elastic-stress calculation above followed by the Niu transfer. Model C applies direct strain sensitivities from other sites as context. Model D uses a stress-dependent crack-compliance model.
+
+The AWD comparison uses the **current synthetic injection–recovery benchmark**, defined as the imposed change in apparent along-fiber speed required for the method to recover the **correct direction in 90% of tests**. These thresholds are sensitivity limits measured by injecting synthetic changes into real field variability; they are **not measured natural velocity changes**.
+
+For the **full usable cable**:
+
+- Nano: **0.55%** (95% interval: 0.40–0.81%)
+- Deep outbound: **0.40%** (0.28–0.48%)
+- Deep return: **0.68%** (0.54–0.81%)
+
+For the matched **700 m cable-length comparison**, Nano is **0.55%** (0.41–0.81%), while both Deep branches are **greater than 2%** because neither reached 90% correct-direction recovery within the tested range ending at 2%. “Greater than 2%” is a lower bound, not a threshold equal to 2%.
+
+Deep outbound has the lowest full-cable point estimate, but Nano and Deep outbound cannot be confidently ranked because their uncertainty overlaps in the formal paired comparison. Deep outbound is more sensitive than Deep return.
+
+The table below uses the **full-cable Deep outbound 90%-correct-recovery threshold of 0.40%** as the single observational benchmark against which the model amplitudes are compared.
+
+No branch constitutes a tidal detection.
+""".strip()
+
+AWD_CODE = r'''
+if models is not None:
+    benchmark = CONFIG["awd_benchmarks"]["full_cable"]["deep_outbound"]
+    deep90 = benchmark["threshold"]
+    summary_rows=[]
+    for forcing in ["pysolid","spotl"]:
+        mapping={
+            "A":f"{forcing}_model_A_dv_over_v",
+            "B":f"{forcing}_model_B_dv_over_v",
+            "C (Takano)":f"{forcing}_model_C_takano_dv_over_v",
+            "D (Vs)":f"{forcing}_model_D_dVs_over_Vs",
+            "D (Vp)":f"{forcing}_model_D_dVp_over_Vp",
+        }
+        if all(col in models.columns for col in mapping.values()):
+            for name,col in mapping.items():
+                amp=np.nanmax(np.abs(models[col]))
+                summary_rows.append({
+                    "forcing":forcing,
+                    "model":name,
+                    "max_abs_dv/v":amp,
+                    "max_abs_percent":100*amp,
+                    "Deep outbound 90% threshold / model":deep90/amp,
+                })
+    summary=pd.DataFrame(summary_rows)
+    print(
+        "AWD benchmark: full-cable Deep outbound 90%-correct-direction threshold "
+        f"= {100*deep90:.2f}% "
+        f"(95% interval {100*benchmark['ci95_low']:.2f}–{100*benchmark['ci95_high']:.2f}%)."
+    )
+    display(summary.style.format({
+        "max_abs_dv/v":"{:.3e}",
+        "max_abs_percent":"{:.5f}",
+        "Deep outbound 90% threshold / model":"{:.1f}x",
+    }))
+'''.strip()
+
 
 def main():
     if not NOTEBOOK.exists():
@@ -211,6 +268,7 @@ def main():
     nb = nbf.read(NOTEBOOK, as_version=4)
     fig3_code_done = False
     primary_code_done = False
+    awd_code_done = False
 
     for cell in nb.cells:
         src = cell.get("source", "")
@@ -228,9 +286,13 @@ def main():
             if not primary_code_done:
                 cell.source = PRIMARY_CODE
                 primary_code_done = True
+        elif cell.cell_type == "markdown" and src.lstrip().startswith("# 4. Models A–D and AWD"):
+            cell.source = AWD_MD
+        elif cell.cell_type == "code" and ("Deep reliable / model" in src or "deep_outbound_reliable" in src):
+            if not awd_code_done:
+                cell.source = AWD_CODE
+                awd_code_done = True
 
-    # Insert the explicit scope statement immediately after the primary Model-B
-    # plot if it is not already present.
     if not any(c.cell_type == "markdown" and "## 3.4 Mechanical scope of Model B" in c.source for c in nb.cells):
         insert_at = None
         for i, cell in enumerate(nb.cells):
@@ -241,7 +303,7 @@ def main():
             nb.cells.insert(insert_at, nbf.v4.new_markdown_cell(CAVEAT_MD))
 
     nbf.write(nb, NOTEBOOK)
-    print(f"Updated Model B / Thomas Figure 3 sections in {NOTEBOOK}")
+    print(f"Updated Model B / Thomas Figure 3 / AWD sensitivity sections in {NOTEBOOK}")
 
 
 if __name__ == "__main__":
