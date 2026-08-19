@@ -43,7 +43,7 @@ echo "Installing Sherlock-compatible pyzmq wheel ..."
 
 echo
 echo "Installing notebook support ..."
-"$PY" -m pip install "ipykernel>=6.29,<7" nbformat
+"$PY" -m pip install "ipykernel>=6.29,<7" nbformat nbconvert
 
 echo
 echo "Installing PySolid build tooling ..."
@@ -60,6 +60,7 @@ import numpy, pandas, matplotlib, scipy
 import PIL
 import pysolid
 import nbformat
+import nbconvert
 import zmq
 from importlib.metadata import version
 print("Python environment check: PASS")
@@ -72,6 +73,7 @@ print("  matplotlib:", matplotlib.__version__)
 print("  pysolid   :", version("pysolid"))
 print("  pyzmq     :", zmq.__version__)
 print("  nbformat  :", nbformat.__version__)
+print("  nbconvert :", nbconvert.__version__)
 PY
 
 echo
@@ -139,3 +141,4 @@ echo "Setup complete."
 echo "For Sherlock OnDemand JupyterLab, restart the JupyterLab session after first-time setup"
 echo "and choose the kernel: SAFOD tides (.venv)"
 echo "For command-line runs, RUN_ON_SHERLOCK.sh automatically uses $VENV/bin/python."
+echo "To execute the notebook and make a viewable HTML without OnDemand, run: bash MAKE_NOTEBOOK_HTML.sh"
