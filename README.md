@@ -65,25 +65,41 @@ The notebook contains a **Thomas et al. Figure-3-style analogue for the June 16�
 
 ## First-time Sherlock setup
 
-Do this on a login node because the SPOTL download is about 200 MB.
+The workflow below was validated on Sherlock with Python 3.11.4 and GCC 14.2.0.
+
+Do this from a Sherlock terminal on a login node because the SPOTL archive is about 200 MB:
+
+```bash
+git clone git@github.com:nataliaberrios/safod-tides.git
+cd safod-tides
+
+module load gcc/14.2.0
+bash scripts/tides/setup_sherlock.sh
+```
+
+If the repository is already cloned, use:
 
 ```bash
 cd safod-tides
 git pull
+module load gcc/14.2.0
 bash scripts/tides/setup_sherlock.sh
 ```
 
-The setup uses a project-local Python virtual environment (`.venv`) rather than a conda environment. It installs the pinned scientific Python stack, `nbformat`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
+The setup script uses a project-local Python virtual environment (`.venv`), not a conda environment. It installs the pinned scientific Python stack, a Sherlock-compatible `pyzmq` wheel, `nbformat`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
 
-If `gfortran`, `gcc`, or `make` is missing, load a GNU compiler toolchain first:
+For SPOTL, the validated Sherlock compiler is GCC 14.2.0. The installer also applies the legacy GNU-Fortran compatibility flags and patches SPOTL's old `ispand.c` implicit-`int` declarations required by modern GCC.
 
-```bash
-module spider gcc
-# load an appropriate GCC module
-bash scripts/tides/install_spotl.sh
+A successful setup should end with messages indicating:
+
+```text
+Python environment check: PASS
+Installed kernelspec safod-tides ...
+SPOTL installed successfully: .../external/spotl/bin/ertid
+Setup complete.
 ```
 
-The SPOTL installer accepts both `install.compile` and `install.comp`, preserves the downloaded archive, saves compiler stdout/stderr for inspection, applies legacy GNU-Fortran flags when needed, and patches SPOTL's old `ispand.c` implicit-`int` declarations for modern GCC.
+Do **not** run `conda activate safod-tides`; there is no conda environment for this repository.
 
 ## Run the calculation
 
@@ -93,7 +109,16 @@ No environment activation is required after setup. The runner automatically uses
 bash RUN_ON_SHERLOCK.sh
 ```
 
-If SPOTL is still not compiled, the pipeline **does not stop**. It generates PySolid, the transparent degree-2 forcing, and Models A–D from PySolid and explicitly marks SPOTL as missing. No SPOTL surrogate is substituted. Once SPOTL is fixed, rerunning the same command adds the independent SPOTL branch and package comparison.
+A successful complete run should end with:
+
+```text
+Updated Model B / Thomas Figure 3 sections in .../notebooks/SAFOD_tides_model_framework.ipynb
+Pipeline complete.
+Products are in outputs/tides/
+Notebook Model B / Thomas Figure 3 sections are synchronized.
+```
+
+The complete validated run includes PySolid, the transparent degree-2 forcing, SPOTL `ertid`, package comparison, Models A–D, and notebook synchronization.
 
 The SLURM wrapper is also available:
 
@@ -156,9 +181,20 @@ It should print a path ending in:
 /safod-tides/.venv/bin/python
 ```
 
-Do not run `conda activate safod-tides`; this repository uses the project-local `.venv`, not a conda environment.
-
 The notebook reads the CSV/JSON products and does not silently rerun external packages. `RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B and Thomas-Figure-3 explanation with the current implementation before you open it.
+
+## Re-running later
+
+After the first successful setup, you normally only need:
+
+```bash
+cd safod-tides
+git pull
+module load gcc/14.2.0
+bash RUN_ON_SHERLOCK.sh
+```
+
+You do not need to recreate `.venv` or reinstall PySolid/SPOTL unless the environment or compiled SPOTL installation has been deleted.
 
 ## Reproducibility rule
 
