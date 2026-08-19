@@ -81,7 +81,30 @@ echo "Registering Jupyter kernel..."
   --display-name "SAFOD tides (.venv)"
 
 echo
-echo "SPOTL additionally requires gcc, gfortran, and make."
+echo "Preparing GNU compiler toolchain for SPOTL ..."
+# The SPOTL build has been validated on Sherlock with gcc/14.2.0.
+# Do not silently fall back to Sherlock's older /usr/bin gcc/gfortran.
+if [[ "${SAFOD_SKIP_GCC_MODULE_LOAD:-0}" != "1" ]]; then
+  if ! command -v module >/dev/null 2>&1; then
+    for init in /etc/profile.d/modules.sh /etc/profile.d/lmod.sh; do
+      if [[ -r "$init" ]]; then
+        # shellcheck disable=SC1090
+        source "$init"
+        break
+      fi
+    done
+  fi
+
+  if command -v module >/dev/null 2>&1; then
+    echo "Loading validated Sherlock module: gcc/14.2.0"
+    module load gcc/14.2.0
+  else
+    echo "WARNING: could not initialize the Sherlock module command."
+    echo "Load gcc/14.2.0 in your shell before rerunning this setup."
+  fi
+fi
+
+echo "SPOTL requires gcc, gfortran, and make."
 missing=0
 for cmd in gcc gfortran make; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -92,10 +115,18 @@ for cmd in gcc gfortran make; do
   fi
 done
 
+if command -v gcc >/dev/null 2>&1; then
+  echo "  gcc version: $(gcc -dumpfullversion -dumpversion 2>/dev/null || gcc -dumpversion)"
+fi
+if command -v gfortran >/dev/null 2>&1; then
+  echo "  gfortran version: $(gfortran -dumpfullversion -dumpversion 2>/dev/null || gfortran -dumpversion)"
+fi
+
 if (( missing )); then
   echo
   echo "Python setup is complete, but SPOTL still needs a GNU compiler toolchain."
-  echo "Use 'module spider gcc' to see available compiler modules, load one, then run:"
+  echo "On Sherlock run:"
+  echo "  module load gcc/14.2.0"
   echo "  bash scripts/tides/install_spotl.sh"
 else
   echo
