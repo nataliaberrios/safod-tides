@@ -23,17 +23,14 @@
   "model_parameters": {
     "niu_stress_sensitivity_pa_inv": 2.4e-07,
     "niu_tidal_stress_scale_pa": 240.0,
-
     "model_b_youngs_modulus_pa": 51900000000.0,
     "model_b_poisson_ratio": 0.24,
     "model_b_vertical_strike_deg": 320.0,
     "model_b_dvv_stress_component": "fault_normal_compression",
-
     "fault_geometry_context_strike_deg": 140.0,
     "fault_geometry_context_dip_deg": 70.0,
     "fault_geometry_context_dip_direction_deg": 230.0,
     "fault_geometry_context_note": "The ~70 degree SW dip is retained as geologic context but is NOT used by current Model B. A dipping-fault traction requires a defensible full 3-D stress tensor at depth; the present package products are surface horizontal strains.",
-
     "takano_strain_sensitivity": 69000.0,
     "sheng_strain_sensitivity": 62500.0,
     "model_d_host_E_pa": 70700000000.0,
@@ -85,6 +82,61 @@
       }
     },
     "interpretation": "For the full usable cable, Deep outbound has the lowest point estimate (0.40%), but Nano and Deep outbound cannot be confidently ranked because their uncertainty intervals overlap in the formal paired comparison. Deep outbound is more sensitive than Deep return. For the matched 700 m comparison, neither Deep branch reached 90% correct-direction recovery within the tested range ending at 2%."
+  },
+  "depth_sensitivity_scenarios": {
+    "reference_depth_m": 1000.0,
+    "max_depth_m": 1000.0,
+    "depth_step_m": 5.0,
+    "benchmark_observable": "deep_outbound",
+    "shallow_surface_multipliers": [
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      20.0,
+      50.0,
+      100.0
+    ],
+    "decay_scales_m": [
+      50.0,
+      100.0,
+      250.0,
+      500.0
+    ],
+    "response_windows_m": [
+      {
+        "label": "0-100 m",
+        "top_m": 0.0,
+        "bottom_m": 100.0
+      },
+      {
+        "label": "100-300 m",
+        "top_m": 100.0,
+        "bottom_m": 300.0
+      },
+      {
+        "label": "300-600 m",
+        "top_m": 300.0,
+        "bottom_m": 600.0
+      },
+      {
+        "label": "600-900 m",
+        "top_m": 600.0,
+        "bottom_m": 900.0
+      },
+      {
+        "label": "0-800 m",
+        "top_m": 0.0,
+        "bottom_m": 800.0
+      },
+      {
+        "label": "0-1000 m",
+        "top_m": 0.0,
+        "bottom_m": 1000.0
+      }
+    ],
+    "stress_depth_assumption": "The current Model-B fault-normal tidal-stress time history is held fixed with depth through 1 km. Only the stress-to-velocity sensitivity is varied. This is a first-order scenario, not a 3-D tidal-stress solution.",
+    "measurement_weight_assumption": "The modeled response is averaged uniformly within each listed depth window. This is a transparent placeholder until depth-localized AWD injection-recovery supplies an empirical measurement operator."
   },
   "primary_forcing": "pysolid"
 }
