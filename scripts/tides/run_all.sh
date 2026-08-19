@@ -39,12 +39,19 @@ else
   $PYTHON_BIN scripts/tides/run_models.py --allow-missing-spotl
 fi
 
-# Keep the presentation notebook synchronized with the current Model-B
-# formulation without putting package installation/Fortran code into it.
+# Evaluate transparent depth-dependent stress-sensitivity scenarios. If an
+# accepted inputs/awd_depth_localized_thresholds.csv file is present, the
+# calculation uses those window-specific empirical thresholds. Otherwise it
+# labels the global full-cable Deep-outbound threshold as a placeholder.
+$PYTHON_BIN scripts/tides/run_depth_sensitivity.py
+
+# Keep the presentation notebook synchronized with the current mechanics,
+# calibration hierarchy, AWD benchmark, and depth-sensitivity scenarios.
 $PYTHON_BIN scripts/tides/patch_notebook_model_b.py
+$PYTHON_BIN scripts/tides/patch_notebook_depth_sensitivity.py
 
 echo
 echo "Pipeline complete."
-echo "Products are in outputs/tides/"
-echo "Notebook Model B / Thomas Figure 3 sections are synchronized."
-echo "Open notebooks/SAFOD_tides_model_framework.ipynb and Run All."
+echo "Products are in outputs/tides/."
+echo "Notebook mechanics, model hierarchy, AWD benchmark, and depth-sensitivity sections are synchronized."
+echo "Open notebooks/SAFOD_tides_model_framework.ipynb and Run All, or run bash MAKE_NOTEBOOK_HTML.sh."
