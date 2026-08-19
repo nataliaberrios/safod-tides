@@ -50,12 +50,41 @@
     "note": "Figure-3-style benchmark for the June 2026 SAFOD window, not an exact numerical reproduction of Thomas et al. (2012). Thomas et al. explicitly use SPOTL strain -> linear elasticity -> a vertical N42W plane and state that body tides dominate inland, but paragraph 13 does not tabulate the exact elastic constants used for Figure 3. The benchmark mu=30 GPa and nu=0.25 values are used transparently; Thomas et al. use these values elsewhere in the same paper, but they are not claimed to be the exact Figure-3 constants."
   },
   "awd_benchmarks": {
-    "deep_outbound_null_95": 0.00184,
-    "deep_outbound_reliable": 0.005,
-    "deep_return_null_95": 0.00305,
-    "deep_return_reliable": 0.01,
-    "nano_null_95": 0.00325,
-    "nano_reliable": 0.01
+    "definition": "Imposed change in apparent along-fiber speed required for the method to recover the correct direction in 90% of tests. These are synthetic changes inserted into real field variability, not measured natural velocity changes.",
+    "full_cable": {
+      "nano": {
+        "threshold": 0.0055,
+        "ci95_low": 0.0040,
+        "ci95_high": 0.0081
+      },
+      "deep_outbound": {
+        "threshold": 0.0040,
+        "ci95_low": 0.0028,
+        "ci95_high": 0.0048
+      },
+      "deep_return": {
+        "threshold": 0.0068,
+        "ci95_low": 0.0054,
+        "ci95_high": 0.0081
+      }
+    },
+    "same_700m": {
+      "nano": {
+        "threshold": 0.0055,
+        "ci95_low": 0.0041,
+        "ci95_high": 0.0081,
+        "reached_90_percent": true
+      },
+      "deep_outbound": {
+        "tested_max": 0.02,
+        "reached_90_percent": false
+      },
+      "deep_return": {
+        "tested_max": 0.02,
+        "reached_90_percent": false
+      }
+    },
+    "interpretation": "For the full usable cable, Deep outbound has the lowest point estimate (0.40%), but Nano and Deep outbound cannot be confidently ranked because their uncertainty intervals overlap in the formal paired comparison. Deep outbound is more sensitive than Deep return. For the matched 700 m comparison, neither Deep branch reached 90% correct-direction recovery within the tested range ending at 2%."
   },
   "primary_forcing": "pysolid"
 }
