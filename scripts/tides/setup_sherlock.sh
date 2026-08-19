@@ -34,6 +34,14 @@ echo "Installing binary scientific wheels compatible with older Sherlock glibc .
   "matplotlib==3.8.4"
 
 echo
+echo "Installing Sherlock-compatible pyzmq wheel ..."
+# pyzmq 27.x CPython 3.11 x86_64 wheels require newer glibc than Sherlock.
+# 25.1.2 publishes a manylinux2014 / glibc >=2.17 CPython 3.11 wheel.
+# Force a binary wheel here so pip never falls back to compiling pyzmq
+# with Sherlock's older system compiler/C language defaults.
+"$PY" -m pip install --only-binary=:all: "pyzmq==25.1.2"
+
+echo
 echo "Installing notebook support ..."
 "$PY" -m pip install "ipykernel>=6.29,<7" nbformat
 
@@ -52,6 +60,7 @@ import numpy, pandas, matplotlib, scipy
 import PIL
 import pysolid
 import nbformat
+import zmq
 from importlib.metadata import version
 print("Python environment check: PASS")
 print("  python    :", sys.version.split()[0])
@@ -61,6 +70,7 @@ print("  pandas    :", pandas.__version__)
 print("  pillow    :", PIL.__version__)
 print("  matplotlib:", matplotlib.__version__)
 print("  pysolid   :", version("pysolid"))
+print("  pyzmq     :", zmq.__version__)
 print("  nbformat  :", nbformat.__version__)
 PY
 
