@@ -32,7 +32,7 @@ The pipeline runs:
 5. **Models A–D**
    - Model A: Niu 240 Pa shortcut
    - Model B: tidal strain -> linear elasticity -> vertical-SAF FNS/RLSS -> Niu transfer
-   - Model C: direct published strain sensitivity
+   - Model C: direct published strain sensitivity used as literature context, not as a SAFOD detectability prediction
    - Model D: crack closure -> effective moduli -> Vp/Vs
 
 Every scientific script writes a JSON provenance record containing the host, time, Python version, script hash, and, when available, git commit.
@@ -86,7 +86,7 @@ module load gcc/14.2.0
 bash scripts/tides/setup_sherlock.sh
 ```
 
-The setup script uses a project-local Python virtual environment (`.venv`), not a conda environment. It installs the pinned scientific Python stack, a Sherlock-compatible `pyzmq` wheel, `nbformat`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
+The setup script uses a project-local Python virtual environment (`.venv`), not a conda environment. It installs the pinned scientific Python stack, a Sherlock-compatible `pyzmq` wheel, `nbformat`, `nbconvert`, a Jupyter kernel named `SAFOD tides (.venv)`, and PySolid 0.3.4 built locally against the pinned NumPy ABI.
 
 For SPOTL, the validated Sherlock compiler is GCC 14.2.0. The installer also applies the legacy GNU-Fortran compatibility flags and patches SPOTL's old `ispand.c` implicit-`int` declarations required by modern GCC.
 
@@ -112,7 +112,7 @@ bash RUN_ON_SHERLOCK.sh
 A successful complete run should end with:
 
 ```text
-Updated Model B / Thomas Figure 3 sections in .../notebooks/SAFOD_tides_model_framework.ipynb
+Updated Model B / Thomas Figure 3 / AWD sensitivity sections in .../notebooks/SAFOD_tides_model_framework.ipynb
 Pipeline complete.
 Products are in outputs/tides/
 Notebook Model B / Thomas Figure 3 sections are synchronized.
@@ -158,9 +158,38 @@ outputs/tides/
 
 The model output includes the primary vertical-SAF FNS/RLSS series and separate Thomas-N42W Figure-3-analogue FNS/RLSS series for each available forcing package.
 
+## Generate a viewable notebook without waiting for OnDemand
+
+If Sherlock OnDemand is slow to allocate a JupyterLab session, the notebook can be executed and exported to a static HTML file directly from a Sherlock terminal.
+
+After the scientific pipeline has completed, run:
+
+```bash
+bash MAKE_NOTEBOOK_HTML.sh
+```
+
+This command uses the registered `safod-tides` kernel to execute the notebook from top to bottom and writes:
+
+```text
+notebooks/SAFOD_tides_model_framework.executed.ipynb
+notebooks/SAFOD_tides_model_framework.executed.html
+```
+
+The `.html` file contains the rendered Markdown, equations, tables, and figures and can be viewed in any web browser. It is a read-only visualization of the executed notebook; JupyterLab is only needed when you want to edit cells interactively.
+
+To copy the HTML from Sherlock to a Mac, run this from a **local Mac terminal**, not from inside Sherlock:
+
+```bash
+scp nberrios@login.sherlock.stanford.edu:/home/groups/ettore88/nberrios/safod-tides/notebooks/SAFOD_tides_model_framework.executed.html ~/Downloads/
+```
+
+Then open `~/Downloads/SAFOD_tides_model_framework.executed.html` in a browser.
+
+If another user clones the repository, replace `nberrios` and the group path in the `scp` command with that user's Sherlock username and clone location.
+
 ## Open the notebook in Sherlock OnDemand JupyterLab
 
-The supported interactive workflow is Sherlock Open OnDemand JupyterLab.
+For interactive editing, use Sherlock Open OnDemand JupyterLab.
 
 1. Run the first-time setup above from a Sherlock terminal.
 2. If JupyterLab was already running during setup, stop that OnDemand JupyterLab job and launch a new one so the new kernelspec is discovered.
@@ -181,7 +210,7 @@ It should print a path ending in:
 /safod-tides/.venv/bin/python
 ```
 
-The notebook reads the CSV/JSON products and does not silently rerun external packages. `RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B and Thomas-Figure-3 explanation with the current implementation before you open it.
+The notebook reads the CSV/JSON products and does not silently rerun external packages. `RUN_ON_SHERLOCK.sh` also synchronizes the notebook's Model-B, Thomas-Figure-3, and AWD-sensitivity explanation with the current implementation before you open it.
 
 ## Re-running later
 
@@ -192,6 +221,12 @@ cd safod-tides
 git pull
 module load gcc/14.2.0
 bash RUN_ON_SHERLOCK.sh
+```
+
+To regenerate the viewable HTML afterward:
+
+```bash
+bash MAKE_NOTEBOOK_HTML.sh
 ```
 
 You do not need to recreate `.venv` or reinstall PySolid/SPOTL unless the environment or compiled SPOTL installation has been deleted.
@@ -216,5 +251,6 @@ The transparent degree-2 calculation is an independent check, not a relabeled pa
 - The revised Model B is a **vertical-fault surface-strain stress benchmark**, not the exact tidal stress tensor along the approximately 1 km-deep DAS interval.
 - A true approximately 70° dipping-fault calculation requires a full 3-D depth-dependent strain tensor.
 - Niu's coefficient is an empirical SAFOD barometric sensitivity measured near 1 km, not a universal tidal sensitivity.
+- Model C / Takano is retained as literature context from a different site and is not used as a direct SAFOD AWD detectability prediction.
 - Model D predicts formation-scale elastic `Vp`/`Vs`; the AWD observable is a coherent borehole-mode apparent velocity.
 - No tidal detection is claimed.
