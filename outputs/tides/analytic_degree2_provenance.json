@@ -1,0 +1,15 @@
+{
+  "created_utc": "2026-08-20T22:26:15.697340+00:00",
+  "hostname": "sh04-ln04.stanford.edu",
+  "platform": "Linux-3.10.0-1160.144.1.el7.tuxcare.els4.x86_64-x86_64-with-glibc2.17",
+  "python": "3.11.4 (main, Jul  5 2023, 14:15:25) [GCC 11.2.0]",
+  "script": "/home/groups/ettore88/nberrios/safod-tides/scripts/tides/run_analytic_degree2.py",
+  "script_sha256": "39f374f339afc17c242e0413961465992485bfd652bdcb0352f2effd26f45016",
+  "git_commit": "86e3f09d3869c745edca329222d2a3e4a16dc762",
+  "cwd": "/home/groups/ettore88/nberrios/safod-tides",
+  "method": "compact degree-2 Sun+Moon ephemeris with PREM Love numbers",
+  "h2": 0.603741,
+  "l2": 0.08401,
+  "output": "/home/groups/ettore88/nberrios/safod-tides/outputs/tides/analytic_degree2_tides.csv",
+  "rows": 1437
+}

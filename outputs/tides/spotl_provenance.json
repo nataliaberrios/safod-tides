@@ -1,0 +1,31 @@
+{
+  "created_utc": "2026-08-20T22:26:16.366197+00:00",
+  "hostname": "sh04-ln04.stanford.edu",
+  "platform": "Linux-3.10.0-1160.144.1.el7.tuxcare.els4.x86_64-x86_64-with-glibc2.17",
+  "python": "3.11.4 (main, Jul  5 2023, 14:15:25) [GCC 11.2.0]",
+  "script": "/home/groups/ettore88/nberrios/safod-tides/scripts/tides/run_spotl_ertid.py",
+  "script_sha256": "5843c84dfb7ec7161c60509dc06cc3cb93fe749c2ec25e6d08631c150b26102a",
+  "git_commit": "86e3f09d3869c745edca329222d2a3e4a16dc762",
+  "cwd": "/home/groups/ettore88/nberrios/safod-tides",
+  "software": "SPOTL ertid",
+  "software_version": "3.3.0.2",
+  "executable": "/home/groups/ettore88/nberrios/safod-tides/external/spotl/bin/ertid",
+  "executable_sha256": "7da9a14e3615a200ae20369cea25d896dd9e10e6bd6bf3717f02e1c6739d48d9",
+  "output": "/home/groups/ettore88/nberrios/safod-tides/outputs/tides/spotl_ertid_tides.csv",
+  "rows": 1437,
+  "site": {
+    "name": "SAFOD Pilot Hole",
+    "latitude_deg": 35.97425794,
+    "longitude_deg": -120.55210714
+  },
+  "window": {
+    "start_utc": "2026-06-16T23:48:00+00:00",
+    "end_utc": "2026-06-17T23:44:00+00:00",
+    "sample_seconds": 60
+  },
+  "requested_strain_azimuths_deg": [
+    0,
+    45,
+    90
+  ]
+}

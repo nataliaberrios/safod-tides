@@ -1,0 +1,41 @@
+{
+  "created_utc": "2026-08-20T22:26:17.748452+00:00",
+  "hostname": "sh04-ln04.stanford.edu",
+  "platform": "Linux-3.10.0-1160.144.1.el7.tuxcare.els4.x86_64-x86_64-with-glibc2.17",
+  "python": "3.11.4 (main, Jul  5 2023, 14:15:25) [GCC 11.2.0]",
+  "script": "/home/groups/ettore88/nberrios/safod-tides/scripts/tides/run_models.py",
+  "script_sha256": "1b09ab1ef9a307d3a2297c21b9f9705ac92e5f667a8b7e0bd6532a61d4419d02",
+  "git_commit": "86e3f09d3869c745edca329222d2a3e4a16dc762",
+  "cwd": "/home/groups/ettore88/nberrios/safod-tides",
+  "output": "/home/groups/ettore88/nberrios/safod-tides/outputs/tides/model_results.csv",
+  "forcings": [
+    "pysolid",
+    "spotl"
+  ],
+  "model_parameters": {
+    "niu_stress_sensitivity_pa_inv": 2.4e-07,
+    "niu_tidal_stress_scale_pa": 240.0,
+    "model_b_youngs_modulus_pa": 51900000000.0,
+    "model_b_poisson_ratio": 0.24,
+    "model_b_vertical_strike_deg": 320.0,
+    "model_b_dvv_stress_component": "fault_normal_compression",
+    "fault_geometry_context_strike_deg": 140.0,
+    "fault_geometry_context_dip_deg": 70.0,
+    "fault_geometry_context_dip_direction_deg": 230.0,
+    "fault_geometry_context_note": "The ~70 degree SW dip is retained as geologic context but is NOT used by current Model B. A dipping-fault traction requires a defensible full 3-D stress tensor at depth; the present package products are surface horizontal strains.",
+    "takano_strain_sensitivity": 69000.0,
+    "sheng_strain_sensitivity": 62500.0,
+    "model_d_host_E_pa": 70700000000.0,
+    "model_d_host_nu": 0.24,
+    "model_d_density_kg_m3": 2700.0,
+    "model_d_target_Vs_m_s": 2873.636,
+    "model_d_target_Vp_m_s": 5106.36
+  },
+  "thomas_figure3_analogue": {
+    "vertical_strike_deg": 318.0,
+    "shear_modulus_pa": 30000000000.0,
+    "poisson_ratio": 0.25,
+    "body_tide_only": true,
+    "note": "Figure-3-style benchmark for the June 2026 SAFOD window, not an exact numerical reproduction of Thomas et al. (2012). Thomas et al. explicitly use SPOTL strain -> linear elasticity -> a vertical N42W plane and state that body tides dominate inland, but paragraph 13 does not tabulate the exact elastic constants used for Figure 3. The benchmark mu=30 GPa and nu=0.25 values are used transparently; Thomas et al. use these values elsewhere in the same paper, but they are not claimed to be the exact Figure-3 constants."
+  }
+}

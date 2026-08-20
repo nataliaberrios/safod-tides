@@ -1,0 +1,11 @@
+{
+  "created_utc": "2026-08-20T22:26:17.008601+00:00",
+  "hostname": "sh04-ln04.stanford.edu",
+  "platform": "Linux-3.10.0-1160.144.1.el7.tuxcare.els4.x86_64-x86_64-with-glibc2.17",
+  "python": "3.11.4 (main, Jul  5 2023, 14:15:25) [GCC 11.2.0]",
+  "script": "/home/groups/ettore88/nberrios/safod-tides/scripts/tides/compare_forcing.py",
+  "script_sha256": "620549898660746cbd7d2ea4a12cff51844839a5c1f1cdf7457b5e875b880042",
+  "git_commit": "86e3f09d3869c745edca329222d2a3e4a16dc762",
+  "cwd": "/home/groups/ettore88/nberrios/safod-tides",
+  "output": "/home/groups/ettore88/nberrios/safod-tides/outputs/tides/forcing_comparison.csv"
+}
